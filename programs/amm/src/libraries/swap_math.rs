@@ -772,6 +772,7 @@ pub fn compute_swap_quote(
     program_id: Pubkey,
     tick_arrays: &HashMap<Pubkey, TickArrayData>,
 ) -> Result<SwapQuoteResult> {
+    use crate::libraries::big_num::U128;
     use crate::libraries::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64};
 
     let sqrt_price_limit = sqrt_price_limit_x64.unwrap_or_else(|| {
@@ -844,7 +845,36 @@ pub fn compute_swap_quote(
 
         // Update state
         state.sqrt_price_x64 = step.sqrt_price_next_x64;
-        state.fee_amount += step.fee_amount;
+
+        // ✅ FIX: Deduct protocol and fund fees (matching on-chain swap_internal logic)
+        let step_fee_amount = step.fee_amount;
+        let mut actual_fee = step.fee_amount;
+
+        // Deduct protocol fee if enabled
+        if amm_config.protocol_fee_rate > 0 {
+            let protocol_delta = U128::from(step_fee_amount)
+                .checked_mul(amm_config.protocol_fee_rate.into())
+                .unwrap()
+                .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
+                .unwrap()
+                .as_u64();
+            actual_fee = actual_fee.saturating_sub(protocol_delta);
+            state.protocol_fee = state.protocol_fee.saturating_add(protocol_delta);
+        }
+
+        // Deduct fund fee if enabled
+        if amm_config.fund_fee_rate > 0 {
+            let fund_delta = U128::from(step_fee_amount)
+                .checked_mul(amm_config.fund_fee_rate.into())
+                .unwrap()
+                .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
+                .unwrap()
+                .as_u64();
+            actual_fee = actual_fee.saturating_sub(fund_delta);
+            state.fund_fee = state.fund_fee.saturating_add(fund_delta);
+        }
+
+        state.fee_amount += actual_fee; // ← Changed from step.fee_amount to actual_fee
 
         if is_base_input {
             state.amount_specified_remaining = state
