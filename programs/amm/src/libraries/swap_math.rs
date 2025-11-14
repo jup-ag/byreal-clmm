@@ -846,7 +846,6 @@ pub fn compute_swap_quote(
         // Update state
         state.sqrt_price_x64 = step.sqrt_price_next_x64;
 
-        // ✅ FIX: Deduct protocol and fund fees (matching on-chain swap_internal logic)
         let step_fee_amount = step.fee_amount;
         let mut actual_fee = step.fee_amount;
 
