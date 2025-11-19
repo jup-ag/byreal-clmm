@@ -3,8 +3,10 @@ use super::liquidity_math;
 use super::sqrt_price_math;
 use crate::error::ErrorCode;
 use crate::instructions::SwapState;
+use crate::libraries::big_num::U128;
 use crate::libraries::swap_math;
 use crate::libraries::tick_math;
+use crate::libraries::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64};
 use crate::states::config::FEE_RATE_DENOMINATOR_VALUE;
 use crate::states::AmmConfig;
 use crate::states::DynTickArrayState;
@@ -771,12 +773,8 @@ pub fn compute_swap_quote(
     sqrt_price_limit_x64: Option<u128>,
     current_timestamp: u64,
     pool_key: Pubkey,
-    program_id: Pubkey,
     tick_arrays: &HashMap<Pubkey, TickArrayData>,
 ) -> Result<SwapQuoteResult> {
-    use crate::libraries::big_num::U128;
-    use crate::libraries::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64};
-
     let sqrt_price_limit = sqrt_price_limit_x64.unwrap_or_else(|| {
         if zero_for_one {
             MIN_SQRT_PRICE_X64 + 1
@@ -899,7 +897,7 @@ pub fn compute_swap_quote(
         if state.sqrt_price_x64 == sqrt_price_next {
             let tick_spacing = pool_state.tick_spacing as u16;
             let start = TickUtils::get_array_start_index(next_tick, tick_spacing);
-            let addr = get_tick_array_address(pool_key, start, program_id);
+            let addr = get_tick_array_address(pool_key, start, crate::id());
 
             if let Some(tick_array) = tick_arrays.get(&addr) {
                 if let Some(mut liq_net) =
