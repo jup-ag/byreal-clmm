@@ -16,6 +16,10 @@ use crate::states::TickUtils;
 use crate::states::POOL_TICK_ARRAY_BITMAP_SEED;
 use crate::states::TICK_ARRAY_SEED;
 use anchor_lang::prelude::*;
+use std::collections::HashMap;
+
+const MAX_TICK_ARRAY_CROSSINGS: usize = 10;
+
 /// Result of a swap step
 #[derive(Default, Debug)]
 pub struct SwapStep {
@@ -300,8 +304,6 @@ fn calculate_amount_in_range(
         }
     }
 }
-
-use std::collections::HashMap;
 
 /// Enum to hold either a fixed or dynamic tick array
 #[derive(Clone)]
@@ -799,11 +801,15 @@ pub fn compute_swap_quote(
     // Get effective fee rate
     let fee_rate = get_effective_fee_rate(pool_state, amm_config, zero_for_one, current_timestamp);
 
-    // Get tick arrays for this direction
-    let tick_array_addrs: Vec<Pubkey> = tick_arrays.keys().cloned().collect();
+    let mut tick_array_addrs: Vec<(i32, Pubkey)> = tick_arrays
+        .iter()
+        .map(|(addr, ta)| (ta.start_tick_index(), *addr))
+        .collect();
+    tick_array_addrs.sort_by_key(|(start_idx, _)| *start_idx);
+    let tick_array_addrs: Vec<Pubkey> =
+        tick_array_addrs.into_iter().map(|(_, addr)| addr).collect();
 
     // Simulate swap
-    const MAX_TICK_ARRAY_CROSSINGS: usize = 10;
     let mut tick_crossings = 0;
     let initial_price = pool_state.sqrt_price_x64;
 
