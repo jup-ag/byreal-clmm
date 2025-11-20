@@ -453,7 +453,6 @@ pub struct SwapQuoteResult {
     pub amount_out: u64,
     pub fee_amount: u64,
     pub fee_rate: u32,
-    pub price_impact_pct: f64,
 }
 
 /// Get the tick array PDA address for a given start index
@@ -685,16 +684,6 @@ pub fn find_next_initialized_tick(
     tick_arrays: &HashMap<Pubkey, TickArrayData>,
     tick_array_addrs: &[Pubkey],
 ) -> Result<i32> {
-    if tick_array_addrs.is_empty() {
-        // Fallback to arithmetic next grid
-        let step = i32::from(tick_spacing);
-        return Ok(if zero_for_one {
-            ((current_tick / step) - 1) * step
-        } else {
-            ((current_tick / step) + 1) * step
-        });
-    }
-
     // Find current array
     let current_start = TickUtils::get_array_start_index(current_tick, tick_spacing);
     let mut idx = 0usize;
@@ -743,14 +732,11 @@ pub fn find_next_initialized_tick(
             }
         }
     }
-
-    // Fallback
-    let step = i32::from(tick_spacing);
-    Ok(if zero_for_one {
-        ((current_tick / step) - 1) * step
-    } else {
-        ((current_tick / step) + 1) * step
-    })
+    // If we reach here, we failed to locate any initialized tick in the
+    // discovered tick arrays. Treat this as a hard error instead of
+    // falling back to an arithmetic grid, to avoid returning quotes
+    // that ignore missing tick array data.
+    Err(error!(ErrorCode::NotEnoughTickArrayAccount))
 }
 
 /// Compute a swap quote off-chain
@@ -809,7 +795,6 @@ pub fn compute_swap_quote(
 
     // Simulate swap
     let mut tick_crossings = 0;
-    let initial_price = pool_state.sqrt_price_x64;
 
     while state.amount_specified_remaining != 0
         && state.sqrt_price_x64 != sqrt_price_limit
@@ -899,17 +884,21 @@ pub fn compute_swap_quote(
             let start = TickUtils::get_array_start_index(next_tick, tick_spacing);
             let addr = get_tick_array_address(pool_key, start, crate::id());
 
-            if let Some(tick_array) = tick_arrays.get(&addr) {
-                if let Some(mut liq_net) =
-                    tick_array.get_tick_liquidity_net(next_tick, tick_spacing)
-                {
-                    if zero_for_one {
-                        liq_net = -liq_net;
-                    }
-                    state.liquidity = liquidity_math::add_delta(state.liquidity, liq_net)
-                        .map_err(|_| error!(ErrorCode::LiquidityAddValueErr))?;
-                }
+            // Adjust liquidity on crossing initialized tick. If the
+            // required tick array data is missing, treat this as a
+            // hard error instead of silently assuming zero liquidity.
+            let tick_array = tick_arrays
+                .get(&addr)
+                .ok_or_else(|| error!(ErrorCode::InvalidTickArray))?;
+            let mut liq_net = tick_array
+                .get_tick_liquidity_net(next_tick, tick_spacing)
+                .ok_or_else(|| error!(ErrorCode::InvalidTickArray))?;
+
+            if zero_for_one {
+                liq_net = -liq_net;
             }
+            state.liquidity = liquidity_math::add_delta(state.liquidity, liq_net)
+                .map_err(|_| error!(ErrorCode::LiquidityAddValueErr))?;
 
             state.tick = if zero_for_one {
                 next_tick - 1
@@ -923,17 +912,14 @@ pub fn compute_swap_quote(
         }
     }
 
-    // Calculate price impact
-    let price_impact_pct = if initial_price > 0 {
-        let price_change = if state.sqrt_price_x64 > initial_price {
-            state.sqrt_price_x64 - initial_price
-        } else {
-            initial_price - state.sqrt_price_x64
-        };
-        (price_change as f64 / initial_price as f64) * 100.0
-    } else {
-        0.0
-    };
+    // If we exit the loop because we've hit the maximum number of tick
+    // array crossings but still have remaining amount to swap, this
+    // indicates that not enough tick arrays were provided to complete
+    // the simulation. Surface this as an error instead of returning
+    // a partial quote.
+    if tick_crossings >= MAX_TICK_ARRAY_CROSSINGS && state.amount_specified_remaining > 0 {
+        return Err(error!(ErrorCode::NotEnoughTickArrayAccount));
+    }
 
     Ok(SwapQuoteResult {
         amount_in: if is_base_input {
@@ -948,7 +934,6 @@ pub fn compute_swap_quote(
         },
         fee_amount: state.fee_amount,
         fee_rate,
-        price_impact_pct,
     })
 }
 
