@@ -2,8 +2,6 @@ use super::full_math::MulDiv;
 use super::liquidity_math;
 use super::sqrt_price_math;
 use crate::error::ErrorCode;
-use crate::instructions::SwapState;
-use crate::libraries::big_num::U128;
 use crate::libraries::swap_math;
 use crate::libraries::tick_math;
 use crate::libraries::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64};
@@ -22,6 +20,16 @@ use std::collections::HashMap;
 
 const MAX_TICK_ARRAY_CROSSINGS: usize = 10;
 const TICK_ARRAY_SIZE: i32 = 60;
+
+#[derive(Debug)]
+struct SwapState {
+    amount_specified_remaining: u64,
+    amount_calculated: u64,
+    sqrt_price_x64: u128,
+    tick: i32,
+    liquidity: u128,
+    fee_amount: u64,
+}
 
 /// Result of a swap step
 #[derive(Default, Debug)]
@@ -794,9 +802,6 @@ pub fn compute_swap_quote(
         amount_calculated: 0,
         sqrt_price_x64: pool_state.sqrt_price_x64,
         tick: pool_state.tick_current,
-        fee_growth_global_x64: 0,
-        protocol_fee: 0,
-        fund_fee: 0,
         liquidity: pool_state.liquidity,
         fee_amount: 0,
     };
@@ -848,48 +853,26 @@ pub fn compute_swap_quote(
 
         // Update state
         state.sqrt_price_x64 = step.sqrt_price_next_x64;
-
-        let step_fee_amount = step.fee_amount;
-        let mut actual_fee = step.fee_amount;
-
-        // Deduct protocol fee if enabled
-        if amm_config.protocol_fee_rate > 0 {
-            let protocol_delta = U128::from(step_fee_amount)
-                .checked_mul(amm_config.protocol_fee_rate.into())
-                .unwrap()
-                .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
-                .unwrap()
-                .as_u64();
-            actual_fee = actual_fee.saturating_sub(protocol_delta);
-            state.protocol_fee = state.protocol_fee.saturating_add(protocol_delta);
-        }
-
-        // Deduct fund fee if enabled
-        if amm_config.fund_fee_rate > 0 {
-            let fund_delta = U128::from(step_fee_amount)
-                .checked_mul(amm_config.fund_fee_rate.into())
-                .unwrap()
-                .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
-                .unwrap()
-                .as_u64();
-            actual_fee = actual_fee.saturating_sub(fund_delta);
-            state.fund_fee = state.fund_fee.saturating_add(fund_delta);
-        }
-
-        state.fee_amount += actual_fee; // ← Changed from step.fee_amount to actual_fee
+        state.fee_amount += step.fee_amount;
 
         if is_base_input {
             state.amount_specified_remaining = state
                 .amount_specified_remaining
-                .saturating_sub(step.amount_in + step.fee_amount);
-            state.amount_calculated = state.amount_calculated.saturating_add(step.amount_out);
+                .checked_sub(step.amount_in + step.fee_amount)
+                .ok_or_else(|| error!(ErrorCode::CalculateOverflow))?;
+            state.amount_calculated = state
+                .amount_calculated
+                .checked_add(step.amount_out)
+                .ok_or_else(|| error!(ErrorCode::CalculateOverflow))?;
         } else {
             state.amount_specified_remaining = state
                 .amount_specified_remaining
-                .saturating_sub(step.amount_out);
+                .checked_sub(step.amount_out)
+                .ok_or_else(|| error!(ErrorCode::CalculateOverflow))?;
             state.amount_calculated = state
                 .amount_calculated
-                .saturating_add(step.amount_in + step.fee_amount);
+                .checked_add(step.amount_in + step.fee_amount)
+                .ok_or_else(|| error!(ErrorCode::CalculateOverflow))?;
         }
 
         // Update tick/liquidity if crossed
