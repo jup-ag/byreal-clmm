@@ -588,7 +588,7 @@ pub fn get_effective_fee_rate(
 pub fn find_next_initialized_tick(
     current_tick: i32,
     zero_for_one: bool,
-    tick_spacing: u16,
+    spacing: u16,
     pool_state: &PoolState,
     pool_key: Pubkey,
     bitmap_extension: &Option<TickArrayBitmapExtension>,
@@ -604,7 +604,8 @@ pub fn find_next_initialized_tick(
     );
 
     // Determine the array corresponding to current_tick
-    let current_start = TickUtils::get_array_start_index(current_tick, tick_spacing);
+    // Determine the array corresponding to current_tick
+    let current_start = TickUtils::get_array_start_index(current_tick, spacing);
     let mut idx = 0usize;
     let mut matched_current = false;
     for (i, addr) in arrays.iter().enumerate() {
@@ -626,60 +627,24 @@ pub fn find_next_initialized_tick(
             return None;
         }
         if &bytes[0..8] == DynTickArrayState::DISCRIMINATOR {
-            let (header, _ticks) = decode_dyn_tick_array(bytes)?;
-            let start = header.start_tick_index;
-            let mut found_pos: Option<usize> = None;
+            let (header, ticks) = decode_dyn_tick_array(bytes)?;
+            // For dynamic arrays, delegate to the on-chain helper methods that
+            // consult both the bitmap and TickState::is_initialized(), so that
+            // we don't stop on merely allocated but uninitialized ticks.
             if !allow_first {
-                if TickUtils::get_array_start_index(cur_tick, tick_spacing) == start {
-                    let mut offset_in_array = ((cur_tick - start) / (tick_spacing as i32)) as i32;
-                    if zero_for_one {
-                        while offset_in_array >= 0 {
-                            if header.tick_offset_index[offset_in_array as usize] > 0 {
-                                found_pos = Some(offset_in_array as usize);
-                                break;
-                            }
-                            offset_in_array -= 1;
-                        }
-                    } else {
-                        offset_in_array += 1;
-                        while offset_in_array < TICK_ARRAY_SIZE {
-                            if header.tick_offset_index[offset_in_array as usize] > 0 {
-                                found_pos = Some(offset_in_array as usize);
-                                break;
-                            }
-                            offset_in_array += 1;
-                        }
-                    }
+                if let Ok(Some(local_idx)) =
+                    header.next_initialized_tick_index(ticks, cur_tick, spacing, zero_for_one)
+                {
+                    let idx = local_idx as usize;
+                    return Some(ticks[idx].tick);
                 }
-            }
-            if found_pos.is_none() && allow_first {
-                if zero_for_one {
-                    let mut i = TICK_ARRAY_SIZE - 1;
-                    while i >= 0 {
-                        if header.tick_offset_index[i as usize] > 0 {
-                            found_pos = Some(i as usize);
-                            break;
-                        }
-                        i -= 1;
-                    }
-                } else {
-                    let mut i: usize = 0;
-                    while i < TICK_ARRAY_SIZE as usize {
-                        if header.tick_offset_index[i] > 0 {
-                            found_pos = Some(i);
-                            break;
-                        }
-                        i += 1;
-                    }
-                }
-            }
-            if let Some(off) = found_pos {
-                return Some(start + (off as i32) * (tick_spacing as i32));
+            } else if let Ok(local_idx) = header.first_initialized_tick_index(ticks, zero_for_one) {
+                let idx = local_idx as usize;
+                return Some(ticks[idx].tick);
             }
         } else if &bytes[0..8] == TickArrayState::DISCRIMINATOR {
             if let Some(mut ta) = decode_fixed_tick_array(bytes) {
-                if let Ok(Some(ts)) = ta.next_initialized_tick(cur_tick, tick_spacing, zero_for_one)
-                {
+                if let Ok(Some(ts)) = ta.next_initialized_tick(cur_tick, spacing, zero_for_one) {
                     return Some(ts.tick);
                 }
                 if allow_first {
@@ -689,6 +654,7 @@ pub fn find_next_initialized_tick(
                 }
             }
         }
+        
         None
     };
 
