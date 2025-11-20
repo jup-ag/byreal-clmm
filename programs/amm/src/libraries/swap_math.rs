@@ -18,7 +18,7 @@ use crate::states::TICK_ARRAY_SEED;
 use anchor_lang::prelude::*;
 use std::collections::HashMap;
 
-const MAX_TICK_ARRAY_CROSSINGS: usize = 2;
+const MAX_TICK_ARRAY_CROSSINGS: usize = 1;
 const TICK_ARRAY_SIZE: i32 = 60;
 
 #[derive(Debug)]
