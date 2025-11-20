@@ -776,11 +776,10 @@ pub fn compute_swap_quote(
     let fee_rate = get_effective_fee_rate(pool_state, amm_config, zero_for_one, current_timestamp);
 
     // Simulate swap
-    let mut tick_crossings = 0;
+    let mut tick_array_crossings = 0;
 
     while state.amount_specified_remaining != 0
         && state.sqrt_price_x64 != sqrt_price_limit
-        && tick_crossings < MAX_TICK_ARRAY_CROSSINGS
     {
         // Find next initialized tick
         let next_tick = find_next_initialized_tick(
@@ -843,6 +842,18 @@ pub fn compute_swap_quote(
 
         // Update tick/liquidity if crossed
         if state.sqrt_price_x64 == sqrt_price_next {
+            // Check if we're crossing into a new tick array
+            let current_array_start = TickUtils::get_array_start_index(state.tick, pool_state.tick_spacing as u16);
+            let next_array_start = TickUtils::get_array_start_index(next_tick, pool_state.tick_spacing as u16);
+            
+            if current_array_start != next_array_start {
+                tick_array_crossings += 1;
+                // Check if we've exceeded the maximum allowed tick array crossings
+                if tick_array_crossings > MAX_TICK_ARRAY_CROSSINGS {
+                    return Err(error!(ErrorCode::NotEnoughTickArrayAccount));
+                }
+            }
+            
             // Adjust liquidity on crossing initialized tick. If the
             // required tick array data is missing, treat this as a
             // hard error instead of silently assuming zero liquidity.
@@ -866,20 +877,10 @@ pub fn compute_swap_quote(
             } else {
                 next_tick
             };
-            tick_crossings += 1;
         } else {
             state.tick = tick_math::get_tick_at_sqrt_price(state.sqrt_price_x64)
                 .map_err(|_| error!(ErrorCode::SqrtPriceX64))?;
         }
-    }
-
-    // If we exit the loop because we've hit the maximum number of tick
-    // array crossings but still have remaining amount to swap, this
-    // indicates that not enough tick arrays were provided to complete
-    // the simulation. Surface this as an error instead of returning
-    // a partial quote.
-    if tick_crossings >= MAX_TICK_ARRAY_CROSSINGS && state.amount_specified_remaining > 0 {
-        return Err(error!(ErrorCode::NotEnoughTickArrayAccount));
     }
 
     Ok(SwapQuoteResult {
