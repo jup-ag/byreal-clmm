@@ -850,7 +850,6 @@ pub fn compute_swap_quote(
         state.sqrt_price_x64 = step.sqrt_price_next_x64;
 
         let step_fee_amount = step.fee_amount;
-        let mut actual_fee = step.fee_amount;
 
         // Deduct protocol fee if enabled
         if amm_config.protocol_fee_rate > 0 {
@@ -860,7 +859,6 @@ pub fn compute_swap_quote(
                 .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
                 .unwrap()
                 .as_u64();
-            actual_fee = actual_fee.saturating_sub(protocol_delta);
             state.protocol_fee = state.protocol_fee.saturating_add(protocol_delta);
         }
 
@@ -872,11 +870,10 @@ pub fn compute_swap_quote(
                 .checked_div(crate::FEE_RATE_DENOMINATOR_VALUE.into())
                 .unwrap()
                 .as_u64();
-            actual_fee = actual_fee.saturating_sub(fund_delta);
             state.fund_fee = state.fund_fee.saturating_add(fund_delta);
         }
 
-        state.fee_amount += actual_fee; // ← Changed from step.fee_amount to actual_fee
+        state.fee_amount = state.fee_amount.saturating_add(step.fee_amount);
 
         if is_base_input {
             state.amount_specified_remaining = state
