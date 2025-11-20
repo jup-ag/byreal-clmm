@@ -21,6 +21,7 @@ use anchor_lang::prelude::*;
 use std::collections::HashMap;
 
 const MAX_TICK_ARRAY_CROSSINGS: usize = 10;
+const TICK_ARRAY_SIZE: i32 = 60;
 
 /// Result of a swap step
 #[derive(Default, Debug)]
@@ -307,143 +308,42 @@ fn calculate_amount_in_range(
     }
 }
 
-/// Enum to hold either a fixed or dynamic tick array
-#[derive(Clone)]
-pub enum TickArrayData {
-    Fixed(TickArrayState),
-    Dynamic {
-        header: DynTickArrayState,
-        ticks: Vec<TickState>,
-    },
+/// Decode a dynamic tick array from raw bytes into header + tick slice views.
+fn decode_dyn_tick_array(data: &[u8]) -> Option<(&DynTickArrayState, &[TickState])> {
+    if data.len() < 8 {
+        return None;
+    }
+    if &data[0..8] != DynTickArrayState::DISCRIMINATOR {
+        return None;
+    }
+    if data.len() < DynTickArrayState::HEADER_LEN {
+        return None;
+    }
+
+    let header_bytes = &data[8..(DynTickArrayState::HEADER_LEN)];
+    let header: &DynTickArrayState = bytemuck::from_bytes(header_bytes);
+    let ticks_bytes = &data[DynTickArrayState::HEADER_LEN..];
+    let ticks: &[TickState] = bytemuck::try_cast_slice(ticks_bytes).ok()?;
+    Some((header, ticks))
 }
 
-impl TickArrayData {
-    /// Parse tick array data from raw bytes
-    pub fn from_bytes(data: &[u8]) -> Option<Self> {
-        if data.len() < 8 {
-            return None;
-        }
+/// Decode a fixed tick array from raw bytes using Anchor deserialization.
+fn decode_fixed_tick_array(data: &[u8]) -> Option<TickArrayState> {
+    TickArrayState::try_deserialize(&mut data.to_vec().as_slice()).ok()
+}
 
+/// Extract the start_tick_index from either a fixed or dynamic tick array account data.
+fn get_tick_array_start_index_from_bytes(data: &[u8]) -> Option<i32> {
+    if data.len() >= 8 {
         if &data[0..8] == DynTickArrayState::DISCRIMINATOR {
-            // Dynamic tick array
-            if data.len() < DynTickArrayState::HEADER_LEN {
-                return None;
-            }
-            let header_bytes = &data[8..(DynTickArrayState::HEADER_LEN)];
-            let header: DynTickArrayState = *bytemuck::from_bytes(header_bytes);
-            let ticks_bytes = &data[DynTickArrayState::HEADER_LEN..];
-            let ticks: Vec<TickState> = bytemuck::try_cast_slice(ticks_bytes).ok()?.to_vec();
-            Some(TickArrayData::Dynamic { header, ticks })
+            let (h, _) = decode_dyn_tick_array(data)?;
+            return Some(h.start_tick_index);
         } else if &data[0..8] == TickArrayState::DISCRIMINATOR {
-            // Fixed tick array
-            let tick_array = TickArrayState::try_deserialize(&mut data.to_vec().as_slice()).ok()?;
-            Some(TickArrayData::Fixed(tick_array))
-        } else {
-            None
+            let ta = decode_fixed_tick_array(data)?;
+            return Some(ta.start_tick_index);
         }
     }
-
-    /// Get the start tick index
-    pub fn start_tick_index(&self) -> i32 {
-        match self {
-            TickArrayData::Fixed(ta) => ta.start_tick_index,
-            TickArrayData::Dynamic { header, .. } => header.start_tick_index,
-        }
-    }
-
-    /// Get liquidity_net for a given tick
-    pub fn get_tick_liquidity_net(&self, tick_index: i32, tick_spacing: u16) -> Option<i128> {
-        match self {
-            TickArrayData::Fixed(ta) => {
-                let offset = ta.get_tick_offset_in_array(tick_index, tick_spacing).ok()?;
-                Some(ta.ticks[offset].liquidity_net)
-            }
-            TickArrayData::Dynamic { header, ticks } => {
-                let i = header
-                    .get_tick_index_in_array(tick_index, tick_spacing)
-                    .ok()?;
-                Some(ticks[i as usize].liquidity_net)
-            }
-        }
-    }
-
-    /// Find next initialized tick in the given direction within this array
-    pub fn next_initialized_tick(
-        &self,
-        current_tick: i32,
-        tick_spacing: u16,
-        zero_for_one: bool,
-        allow_first: bool,
-    ) -> Option<i32> {
-        const TICK_ARRAY_SIZE: i32 = 60;
-
-        match self {
-            TickArrayData::Fixed(ta) => {
-                let mut ta_mut = ta.clone();
-                if !allow_first {
-                    if let Ok(Some(ts)) =
-                        ta_mut.next_initialized_tick(current_tick, tick_spacing, zero_for_one)
-                    {
-                        return Some(ts.tick);
-                    }
-                } else {
-                    if let Ok(ts) = ta_mut.first_initialized_tick(zero_for_one) {
-                        return Some(ts.tick);
-                    }
-                }
-                None
-            }
-            TickArrayData::Dynamic { header, .. } => {
-                let start = header.start_tick_index;
-                let mut found_pos: Option<usize> = None;
-
-                if !allow_first
-                    && TickUtils::get_array_start_index(current_tick, tick_spacing) == start
-                {
-                    let mut offset_in_array =
-                        ((current_tick - start) / (tick_spacing as i32)) as i32;
-                    if zero_for_one {
-                        while offset_in_array >= 0 {
-                            if header.tick_offset_index[offset_in_array as usize] > 0 {
-                                found_pos = Some(offset_in_array as usize);
-                                break;
-                            }
-                            offset_in_array -= 1;
-                        }
-                    } else {
-                        offset_in_array += 1;
-                        while offset_in_array < TICK_ARRAY_SIZE {
-                            if header.tick_offset_index[offset_in_array as usize] > 0 {
-                                found_pos = Some(offset_in_array as usize);
-                                break;
-                            }
-                            offset_in_array += 1;
-                        }
-                    }
-                }
-
-                if found_pos.is_none() && allow_first {
-                    if zero_for_one {
-                        for i in (0..TICK_ARRAY_SIZE as usize).rev() {
-                            if header.tick_offset_index[i] > 0 {
-                                found_pos = Some(i);
-                                break;
-                            }
-                        }
-                    } else {
-                        for i in 0..TICK_ARRAY_SIZE as usize {
-                            if header.tick_offset_index[i] > 0 {
-                                found_pos = Some(i);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                found_pos.map(|off| start + (off as i32) * (tick_spacing as i32))
-            }
-        }
-    }
+    None
 }
 
 /// Result of a swap computation
@@ -676,44 +576,124 @@ pub fn get_effective_fee_rate(
     fee_rate
 }
 
-/// Find the next initialized tick in the given direction
+/// Find next initialized tick across tick arrays in the given direction.
 pub fn find_next_initialized_tick(
     current_tick: i32,
     zero_for_one: bool,
     tick_spacing: u16,
-    tick_arrays: &HashMap<Pubkey, TickArrayData>,
-    tick_array_addrs: &[Pubkey],
+    pool_state: &PoolState,
+    pool_key: Pubkey,
+    bitmap_extension: &Option<TickArrayBitmapExtension>,
+    program_id: Pubkey,
+    tick_arrays_raw: &HashMap<Pubkey, Vec<u8>>,
 ) -> Result<i32> {
-    // Find current array
+    let arrays = get_swap_tick_arrays(
+        pool_state,
+        pool_key,
+        bitmap_extension,
+        zero_for_one,
+        program_id,
+    );
+
+    // Determine the array corresponding to current_tick
     let current_start = TickUtils::get_array_start_index(current_tick, tick_spacing);
     let mut idx = 0usize;
     let mut matched_current = false;
-
-    for (i, addr) in tick_array_addrs.iter().enumerate() {
-        if let Some(tick_array) = tick_arrays.get(addr) {
-            if tick_array.start_tick_index() == current_start {
-                idx = i;
-                matched_current = true;
-                break;
+    for (i, addr) in arrays.iter().enumerate() {
+        if let Some(bytes) = tick_arrays_raw.get(addr) {
+            if let Some(start) = get_tick_array_start_index_from_bytes(bytes) {
+                if start == current_start {
+                    idx = i;
+                    matched_current = true;
+                    break;
+                }
             }
         }
     }
 
-    // Helper to search within an array
+    // Helper to fetch next initialized tick within an array
     let search_in_array = |addr: &Pubkey, cur_tick: i32, allow_first: bool| -> Option<i32> {
-        let tick_array = tick_arrays.get(addr)?;
-        tick_array.next_initialized_tick(cur_tick, tick_spacing, zero_for_one, allow_first)
+        let bytes = tick_arrays_raw.get(addr)?;
+        if bytes.len() < 8 {
+            return None;
+        }
+        if &bytes[0..8] == DynTickArrayState::DISCRIMINATOR {
+            let (header, _ticks) = decode_dyn_tick_array(bytes)?;
+            let start = header.start_tick_index;
+            let mut found_pos: Option<usize> = None;
+            if !allow_first {
+                if TickUtils::get_array_start_index(cur_tick, tick_spacing) == start {
+                    let mut offset_in_array = ((cur_tick - start) / (tick_spacing as i32)) as i32;
+                    if zero_for_one {
+                        while offset_in_array >= 0 {
+                            if header.tick_offset_index[offset_in_array as usize] > 0 {
+                                found_pos = Some(offset_in_array as usize);
+                                break;
+                            }
+                            offset_in_array -= 1;
+                        }
+                    } else {
+                        offset_in_array += 1;
+                        while offset_in_array < TICK_ARRAY_SIZE {
+                            if header.tick_offset_index[offset_in_array as usize] > 0 {
+                                found_pos = Some(offset_in_array as usize);
+                                break;
+                            }
+                            offset_in_array += 1;
+                        }
+                    }
+                }
+            }
+            if found_pos.is_none() && allow_first {
+                if zero_for_one {
+                    let mut i = TICK_ARRAY_SIZE - 1;
+                    while i >= 0 {
+                        if header.tick_offset_index[i as usize] > 0 {
+                            found_pos = Some(i as usize);
+                            break;
+                        }
+                        i -= 1;
+                    }
+                } else {
+                    let mut i: usize = 0;
+                    while i < TICK_ARRAY_SIZE as usize {
+                        if header.tick_offset_index[i] > 0 {
+                            found_pos = Some(i);
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+            }
+            if let Some(off) = found_pos {
+                return Some(start + (off as i32) * (tick_spacing as i32));
+            }
+        } else if &bytes[0..8] == TickArrayState::DISCRIMINATOR {
+            if let Some(mut ta) = decode_fixed_tick_array(bytes) {
+                if let Ok(Some(ts)) = ta.next_initialized_tick(cur_tick, tick_spacing, zero_for_one)
+                {
+                    return Some(ts.tick);
+                }
+                if allow_first {
+                    if let Ok(ts) = ta.first_initialized_tick(zero_for_one) {
+                        return Some(ts.tick);
+                    }
+                }
+            }
+        }
+        None
     };
 
-    // Search logic
+    // If current array matches, try within it using current_tick
     if matched_current {
-        if let Some(t) = search_in_array(&tick_array_addrs[idx], current_tick, false) {
+        if let Some(t) = search_in_array(&arrays[idx], current_tick, false) {
             return Ok(t);
         }
+        // Otherwise advance in direction
         let iter: Box<dyn Iterator<Item = &Pubkey>> = if zero_for_one {
-            Box::new(tick_array_addrs[..idx].iter().rev())
+            Box::new(arrays[..idx].iter().rev())
         } else {
-            Box::new(tick_array_addrs[idx + 1..].iter())
+            Box::new(arrays[idx + 1..].iter())
         };
         for addr in iter {
             if let Some(t) = search_in_array(addr, current_tick, true) {
@@ -721,10 +701,11 @@ pub fn find_next_initialized_tick(
             }
         }
     } else {
+        // Not matched: start from the first array and take its first/next
         let iter: Box<dyn Iterator<Item = &Pubkey>> = if zero_for_one {
-            Box::new(tick_array_addrs.iter().rev())
+            Box::new(arrays.iter().rev())
         } else {
-            Box::new(tick_array_addrs.iter())
+            Box::new(arrays.iter())
         };
         for addr in iter {
             if let Some(t) = search_in_array(addr, current_tick, true) {
@@ -732,11 +713,44 @@ pub fn find_next_initialized_tick(
             }
         }
     }
+
     // If we reach here, we failed to locate any initialized tick in the
     // discovered tick arrays. Treat this as a hard error instead of
     // falling back to an arithmetic grid, to avoid returning quotes
     // that ignore missing tick array data.
     Err(error!(ErrorCode::NotEnoughTickArrayAccount))
+}
+
+/// Get liquidity_net for a given tick index from the cached tick arrays.
+fn get_tick_liquidity_net(
+    tick_index: i32,
+    tick_spacing: u16,
+    tick_arrays_raw: &HashMap<Pubkey, Vec<u8>>,
+    pool_key: Pubkey,
+    program_id: Pubkey,
+) -> Option<i128> {
+    let start = TickUtils::get_array_start_index(tick_index, tick_spacing);
+    let addr = get_tick_array_address(pool_key, start, program_id);
+    let data = tick_arrays_raw.get(&addr)?;
+    if data.len() < 8 {
+        return None;
+    }
+    if &data[0..8] == DynTickArrayState::DISCRIMINATOR {
+        let (header, ticks) = decode_dyn_tick_array(data)?;
+        if let Ok(i) = header.get_tick_index_in_array(tick_index, tick_spacing) {
+            return Some(ticks[i as usize].liquidity_net);
+        }
+        None
+    } else if &data[0..8] == TickArrayState::DISCRIMINATOR {
+        if let Some(ta) = decode_fixed_tick_array(data) {
+            if let Ok(offset) = ta.get_tick_offset_in_array(tick_index, tick_spacing) {
+                return Some(ta.ticks[offset].liquidity_net);
+            }
+        }
+        None
+    } else {
+        None
+    }
 }
 
 /// Compute a swap quote off-chain
@@ -749,7 +763,10 @@ pub fn find_next_initialized_tick(
 /// * `is_base_input` - true for exact input, false for exact output
 /// * `sqrt_price_limit_x64` - Optional price limit
 /// * `current_timestamp` - Current unix timestamp for decay fee calculation
-/// * `tick_arrays` - Map of tick array addresses to their TickArrayData
+/// * `pool_key` - Pool account key
+/// * `program_id` - Program ID
+/// * `bitmap_extension` - Optional bitmap extension for tick array navigation
+/// * `tick_arrays_raw` - Map of tick array addresses to their raw byte data
 pub fn compute_swap_quote(
     pool_state: &PoolState,
     amm_config: &AmmConfig,
@@ -759,7 +776,9 @@ pub fn compute_swap_quote(
     sqrt_price_limit_x64: Option<u128>,
     current_timestamp: u64,
     pool_key: Pubkey,
-    tick_arrays: &HashMap<Pubkey, TickArrayData>,
+    program_id: Pubkey,
+    bitmap_extension: &Option<TickArrayBitmapExtension>,
+    tick_arrays_raw: &HashMap<Pubkey, Vec<u8>>,
 ) -> Result<SwapQuoteResult> {
     let sqrt_price_limit = sqrt_price_limit_x64.unwrap_or_else(|| {
         if zero_for_one {
@@ -785,14 +804,6 @@ pub fn compute_swap_quote(
     // Get effective fee rate
     let fee_rate = get_effective_fee_rate(pool_state, amm_config, zero_for_one, current_timestamp);
 
-    let mut tick_array_addrs: Vec<(i32, Pubkey)> = tick_arrays
-        .iter()
-        .map(|(addr, ta)| (ta.start_tick_index(), *addr))
-        .collect();
-    tick_array_addrs.sort_by_key(|(start_idx, _)| *start_idx);
-    let tick_array_addrs: Vec<Pubkey> =
-        tick_array_addrs.into_iter().map(|(_, addr)| addr).collect();
-
     // Simulate swap
     let mut tick_crossings = 0;
 
@@ -805,8 +816,11 @@ pub fn compute_swap_quote(
             state.tick,
             zero_for_one,
             pool_state.tick_spacing as u16,
-            tick_arrays,
-            &tick_array_addrs,
+            pool_state,
+            pool_key,
+            bitmap_extension,
+            program_id,
+            tick_arrays_raw,
         )?;
 
         let sqrt_price_next = tick_math::get_sqrt_price_at_tick(next_tick)
@@ -880,19 +894,17 @@ pub fn compute_swap_quote(
 
         // Update tick/liquidity if crossed
         if state.sqrt_price_x64 == sqrt_price_next {
-            let tick_spacing = pool_state.tick_spacing as u16;
-            let start = TickUtils::get_array_start_index(next_tick, tick_spacing);
-            let addr = get_tick_array_address(pool_key, start, crate::id());
-
             // Adjust liquidity on crossing initialized tick. If the
             // required tick array data is missing, treat this as a
             // hard error instead of silently assuming zero liquidity.
-            let tick_array = tick_arrays
-                .get(&addr)
-                .ok_or_else(|| error!(ErrorCode::InvalidTickArray))?;
-            let mut liq_net = tick_array
-                .get_tick_liquidity_net(next_tick, tick_spacing)
-                .ok_or_else(|| error!(ErrorCode::InvalidTickArray))?;
+            let mut liq_net = get_tick_liquidity_net(
+                next_tick,
+                pool_state.tick_spacing as u16,
+                tick_arrays_raw,
+                pool_key,
+                program_id,
+            )
+            .ok_or_else(|| error!(ErrorCode::InvalidTickArray))?;
 
             if zero_for_one {
                 liq_net = -liq_net;
