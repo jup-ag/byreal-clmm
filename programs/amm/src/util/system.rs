@@ -1,4 +1,4 @@
-use crate::error::ErrorCode;
+use crate::error::ErrorCode as ClmmErrorCode;
 use anchor_lang::{prelude::*, system_program};
 
 pub fn create_or_allocate_account<'a>(
@@ -11,6 +11,15 @@ pub fn create_or_allocate_account<'a>(
 ) -> Result<()> {
     let rent = Rent::get()?;
     let current_lamports = target_account.lamports();
+
+    #[cfg(all(feature = "localnet", feature = "enable-log"))]
+    msg!(
+        "create_or_allocate_account, target_account: {}, current_lamports: {}, cur_space:{}, target_space: {}",
+        target_account.key.to_string(),
+        current_lamports,
+        target_account.data_len(),
+        space
+    );
 
     if current_lamports == 0 {
         let lamports = rent.minimum_balance(space);
@@ -68,7 +77,7 @@ pub fn realloc_account_if_needed<'a>(
     require_keys_eq!(
         *target_account.owner,
         crate::id(),
-        ErrorCode::IllegalAccountOwner
+        ClmmErrorCode::IllegalAccountOwner
     );
 
     let current_account_size = target_account.data.borrow().len();
@@ -93,7 +102,7 @@ pub fn realloc_account_if_needed<'a>(
         require_keys_eq!(
             *system_program.key,
             system_program::ID,
-            ErrorCode::InvalidAccount
+            ClmmErrorCode::InvalidAccount
         );
 
         system_program::transfer(

@@ -117,8 +117,8 @@ pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
     nft_owner: &'b Signer<'info>,
     pool_state_loader: &'b AccountLoader<'info, PoolState>,
     personal_position: &'b mut Box<Account<'info, PersonalPositionState>>,
-    tick_array_lower_loader: &'b AccountInfo<'info>,
-    tick_array_upper_loader: &'b AccountInfo<'info>,
+    tick_array_lower_account: &'b AccountInfo<'info>,
+    tick_array_upper_account: &'b AccountInfo<'info>,
     token_account_0: &'b AccountInfo<'info>,
     token_account_1: &'b AccountInfo<'info>,
     token_vault_0: &'b AccountInfo<'info>,
@@ -144,10 +144,17 @@ pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
     let tick_lower = personal_position.tick_lower_index;
     let tick_upper = personal_position.tick_upper_index;
 
-    let tick_array_lower_loader = TickArrayContainer::try_from(&tick_array_lower_loader, tick_lower, tick_spacing)?;
-    let tick_array_upper_loader = TickArrayContainer::try_from(&tick_array_upper_loader, tick_upper, tick_spacing)?;
+    let tick_array_lower_loader =
+        TickArrayContainer::try_from(&tick_array_lower_account, tick_lower, tick_spacing)?;
+    let tick_array_upper_loader =
+        TickArrayContainer::try_from(&tick_array_upper_account, tick_upper, tick_spacing)?;
 
-    let use_tickarray_bitmap_extension = pool_state.is_overflow_default_tickarray_bitmap(vec![tick_lower, tick_upper]);
+    // check tick array pool id
+    require_keys_eq!(tick_array_lower_loader.get_pool_id()?, pool_state.key());
+    require_keys_eq!(tick_array_upper_loader.get_pool_id()?, pool_state.key());
+
+    let use_tickarray_bitmap_extension =
+        pool_state.is_overflow_default_tickarray_bitmap(vec![tick_lower, tick_upper]);
 
     let LiquidityChangeResult {
         amount_0,
@@ -213,10 +220,11 @@ pub fn calculate_latest_token_fees(
     fee_growth_inside_latest_x64: u128,
     liquidity: u128,
 ) -> u64 {
-    let fee_growth_delta = U128::from(fee_growth_inside_latest_x64.wrapping_sub(fee_growth_inside_last_x64))
-        .mul_div_floor(U128::from(liquidity), U128::from(fixed_point_64::Q64))
-        .unwrap()
-        .to_underflow_u64();
+    let fee_growth_delta =
+        U128::from(fee_growth_inside_latest_x64.wrapping_sub(fee_growth_inside_last_x64))
+            .mul_div_floor(U128::from(liquidity), U128::from(fixed_point_64::Q64))
+            .unwrap()
+            .to_underflow_u64();
     #[cfg(feature = "enable-log")]
     msg!("calculate_latest_token_fees fee_growth_delta:{}, fee_growth_inside_latest_x64:{}, fee_growth_inside_last_x64:{}, liquidity:{}", fee_growth_delta, fee_growth_inside_latest_x64, fee_growth_inside_last_x64, liquidity);
     last_total_fees.checked_add(fee_growth_delta).unwrap()

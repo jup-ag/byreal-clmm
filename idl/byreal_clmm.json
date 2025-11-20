@@ -277,6 +277,65 @@
       "args": []
     },
     {
+      "name": "close_protocol_position",
+      "docs": [
+        "close the protocol position, send the remaining fund fee to admin fee keeper",
+        "this instruction will be delete after all protocol position is closed"
+      ],
+      "discriminator": [
+        201,
+        117,
+        152,
+        144,
+        85,
+        85,
+        108,
+        178
+      ],
+      "accounts": [
+        {
+          "name": "admin_group",
+          "docs": [
+            "amm admin group account to store admin permissions.",
+            "anyone can collect fee, but only fee-manager in admin group can receive fee"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  110,
+                  95,
+                  103,
+                  114,
+                  111,
+                  117,
+                  112
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_keeper",
+          "writable": true
+        },
+        {
+          "name": "protocol_position",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "collect_fund_fee",
       "docs": [
         "Collect the fund fee accrued to the pool",
@@ -1338,9 +1397,6 @@
         },
         {
           "name": "token_vault_0",
-          "docs": [
-            "Token_0 vault for the pool"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1372,9 +1428,6 @@
         },
         {
           "name": "token_vault_1",
-          "docs": [
-            "Token_1 vault for the pool"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1526,6 +1579,335 @@
       ]
     },
     {
+      "name": "create_pool_decay_fee",
+      "docs": [
+        "Creates a pool for the given token pair and the initial price with decay fee",
+        "# Arguments",
+        "",
+        "* `ctx`- The context of accounts",
+        "* `params` - The parameters for creating the pool with decay fee"
+      ],
+      "discriminator": [
+        252,
+        154,
+        210,
+        191,
+        22,
+        217,
+        136,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "pool_creator",
+          "docs": [
+            "Address paying to create the pool. Can be anyone"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool_manager",
+          "docs": [
+            "with pool_manager permission, the pool creator can create a pool."
+          ],
+          "signer": true
+        },
+        {
+          "name": "admin_group",
+          "docs": [
+            "amm admin group account to store admin permissions."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  110,
+                  95,
+                  103,
+                  114,
+                  111,
+                  117,
+                  112
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "amm_config",
+          "docs": [
+            "Which config the pool belongs to."
+          ]
+        },
+        {
+          "name": "pool_state",
+          "docs": [
+            "Initialize an account to store the pool state"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "amm_config"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint_0"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint_1"
+              }
+            ]
+          }
+        },
+        {
+          "name": "offchain_reward_config",
+          "docs": [
+            "Initialize an account to store the off-chain reward config"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  102,
+                  102,
+                  99,
+                  104,
+                  97,
+                  105,
+                  110,
+                  95,
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint_0",
+          "docs": [
+            "Token_0 mint, the key must be smaller then token_1 mint."
+          ]
+        },
+        {
+          "name": "token_mint_1",
+          "docs": [
+            "Token_1 mint"
+          ]
+        },
+        {
+          "name": "token_vault_0",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint_0"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault_1",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint_1"
+              }
+            ]
+          }
+        },
+        {
+          "name": "observation_state",
+          "docs": [
+            "Initialize an account to store oracle observations"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  98,
+                  115,
+                  101,
+                  114,
+                  118,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tick_array_bitmap",
+          "docs": [
+            "Initialize an account to store if a tick array is initialized."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  116,
+                  105,
+                  99,
+                  107,
+                  95,
+                  97,
+                  114,
+                  114,
+                  97,
+                  121,
+                  95,
+                  98,
+                  105,
+                  116,
+                  109,
+                  97,
+                  112,
+                  95,
+                  101,
+                  120,
+                  116,
+                  101,
+                  110,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program_0",
+          "docs": [
+            "Spl token program or token program 2022"
+          ]
+        },
+        {
+          "name": "token_program_1",
+          "docs": [
+            "Spl token program or token program 2022"
+          ]
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "To create a new program account"
+          ],
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "docs": [
+            "Sysvar for program account"
+          ],
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "CreatePoolDecayFeeParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "create_support_mint_associated",
       "docs": [
         "Create support token22 mint account which can create pool and send rewards with ignoring the not support extensions."
@@ -1670,39 +2052,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_lower_index",
-                "account": "PersonalPositionState"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_upper_index",
-                "account": "PersonalPositionState"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "token_vault_0",
@@ -1721,14 +2071,16 @@
         {
           "name": "tick_array_lower",
           "docs": [
-            "Stores init state for the lower tick"
+            "Stores init state for the lower tick",
+            "constraint = tick_array_lower.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
         {
           "name": "tick_array_upper",
           "docs": [
-            "Stores init state for the upper tick"
+            "Stores init state for the upper tick",
+            "constraint = tick_array_upper.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
@@ -1818,39 +2170,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_lower_index",
-                "account": "PersonalPositionState"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_upper_index",
-                "account": "PersonalPositionState"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "token_vault_0",
@@ -1869,14 +2189,16 @@
         {
           "name": "tick_array_lower",
           "docs": [
-            "Stores init state for the lower tick"
+            "Stores init state for the lower tick",
+            "constraint = tick_array_lower.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
         {
           "name": "tick_array_upper",
           "docs": [
-            "Stores init state for the upper tick"
+            "Stores init state for the upper tick",
+            "constraint = tick_array_upper.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
@@ -2176,39 +2498,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_lower_index",
-                "account": "PersonalPositionState"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_upper_index",
-                "account": "PersonalPositionState"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "personal_position",
@@ -2220,14 +2510,16 @@
         {
           "name": "tick_array_lower",
           "docs": [
-            "Stores init state for the lower tick"
+            "Stores init state for the lower tick",
+            "constraint = tick_array_lower.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
         {
           "name": "tick_array_upper",
           "docs": [
-            "Stores init state for the upper tick"
+            "Stores init state for the upper tick",
+            "constraint = tick_array_upper.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
@@ -2325,39 +2617,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_lower_index",
-                "account": "PersonalPositionState"
-              },
-              {
-                "kind": "account",
-                "path": "personal_position.tick_upper_index",
-                "account": "PersonalPositionState"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "personal_position",
@@ -2369,14 +2629,16 @@
         {
           "name": "tick_array_lower",
           "docs": [
-            "Stores init state for the lower tick"
+            "Stores init state for the lower tick",
+            "constraint = tick_array_lower.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
         {
           "name": "tick_array_upper",
           "docs": [
-            "Stores init state for the upper tick"
+            "Stores init state for the upper tick",
+            "constraint = tick_array_upper.load()?.pool_id == pool_state.key()"
           ],
           "writable": true
         },
@@ -2851,40 +3113,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "docs": [
-            "Store the information of market marking in range"
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_lower_index"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_upper_index"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "tick_array_lower",
@@ -3229,40 +3458,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "docs": [
-            "Store the information of market marking in range"
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_lower_index"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_upper_index"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "tick_array_lower",
@@ -3539,40 +3735,7 @@
           "writable": true
         },
         {
-          "name": "protocol_position",
-          "docs": [
-            "Store the information of market marking in range"
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool_state"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_lower_index"
-              },
-              {
-                "kind": "arg",
-                "path": "tick_upper_index"
-              }
-            ]
-          }
+          "name": "protocol_position"
         },
         {
           "name": "tick_array_lower",
@@ -4867,19 +5030,6 @@
         139,
         153
       ]
-    },
-    {
-      "name": "TickArrayState",
-      "discriminator": [
-        192,
-        155,
-        85,
-        205,
-        49,
-        249,
-        129,
-        42
-      ]
     }
   ],
   "events": [
@@ -5275,6 +5425,11 @@
       "code": 6046,
       "name": "InvalidAccount",
       "msg": "Invalid account"
+    },
+    {
+      "code": 6047,
+      "name": "DecayFeeNeitherOnSellMint0NorMint1",
+      "msg": "Invalid decay fee params"
     }
   ],
   "types": [
@@ -5630,6 +5785,76 @@
               "The token transfer fee for deposit_amount_1"
             ],
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreatePoolDecayFeeParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sqrt_price_x64",
+            "docs": [
+              "The initial sqrt price of the pool, in x64 format."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "open_time",
+            "docs": [
+              "The open time of the pool, can be set to a future time; it should be None or future time.",
+              "If None, the pool will be opened immediately."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "use_decay_fee",
+            "docs": [
+              "Whether to use decay fee for the pool.",
+              "If true, the pool will use decay fee."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "decay_fee_on_sell_mint0",
+            "docs": [
+              "Whether to use decay fee on sell for mint0 and mint1.",
+              "If true, the pool will use decay fee on sell for mint0 and mint1",
+              "these two fields are only used when use_decay_fee is true, and at least one of them must be true."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "decay_fee_on_sell_mint1",
+            "type": "bool"
+          },
+          {
+            "name": "init_decay_fee_rate",
+            "docs": [
+              "The initial decay fee rate for the pool, in percentage.(1=1%)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "decay_fee_decrease_rate",
+            "docs": [
+              "decrease rate for the decay fee, in percentage.(1=1%)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "decay_fee_decrease_interval",
+            "docs": [
+              "The interval for decreasing the decay fee, in seconds.",
+              "how to calculate the current decay fee:",
+              "interval_count = (current_time - open_time) / decay_fee_decrease_interval",
+              "current_decay_fee = init_decay_fee_rate*((1-decay_fee_decrease_rate/100)^interval_count)"
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -6628,11 +6853,51 @@
             "type": "u64"
           },
           {
+            "name": "decay_fee_flag",
+            "docs": [
+              "decay fee flag",
+              "bit0, 1: use decay fee, 0: not use decay fee",
+              "bit1, 1: use decay fee on sell for mint0, 0: not use decay fee on sell for mint0",
+              "bit2, 1: use decay fee on sell for mint1, 0: not use decay fee on sell for mint1"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "decay_fee_init_fee_rate",
+            "docs": [
+              "The initial decay fee rate for the pool, in percentage.(1=1%)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "decay_fee_decrease_rate",
+            "docs": [
+              "decrease rate for the decay fee, in percentage.(1=1%)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "decay_fee_decrease_interval",
+            "docs": [
+              "The interval for decreasing the decay fee, in seconds."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "padding1_1",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
             "name": "padding1",
             "type": {
               "array": [
                 "u64",
-                24
+                23
               ]
             }
           },
@@ -7030,118 +7295,6 @@
                   ]
                 },
                 14
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "TickArrayState",
-      "serialization": "bytemuckunsafe",
-      "repr": {
-        "kind": "c",
-        "packed": true
-      },
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "pool_id",
-            "type": "pubkey"
-          },
-          {
-            "name": "start_tick_index",
-            "type": "i32"
-          },
-          {
-            "name": "ticks",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "TickState"
-                  }
-                },
-                60
-              ]
-            }
-          },
-          {
-            "name": "initialized_tick_count",
-            "type": "u8"
-          },
-          {
-            "name": "recent_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "padding",
-            "type": {
-              "array": [
-                "u8",
-                107
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "TickState",
-      "serialization": "bytemuckunsafe",
-      "repr": {
-        "kind": "c",
-        "packed": true
-      },
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "tick",
-            "type": "i32"
-          },
-          {
-            "name": "liquidity_net",
-            "docs": [
-              "Amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left)"
-            ],
-            "type": "i128"
-          },
-          {
-            "name": "liquidity_gross",
-            "docs": [
-              "The total position liquidity that references this tick"
-            ],
-            "type": "u128"
-          },
-          {
-            "name": "fee_growth_outside_0_x64",
-            "docs": [
-              "Fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)",
-              "only has relative meaning, not absolute — the value depends on when the tick is initialized"
-            ],
-            "type": "u128"
-          },
-          {
-            "name": "fee_growth_outside_1_x64",
-            "type": "u128"
-          },
-          {
-            "name": "reward_growths_outside_x64",
-            "type": {
-              "array": [
-                "u128",
-                3
-              ]
-            }
-          },
-          {
-            "name": "padding",
-            "type": {
-              "array": [
-                "u32",
-                13
               ]
             }
           }

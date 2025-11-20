@@ -262,7 +262,7 @@ pub mod tick_array_bitmap_extension_test {
 
     pub fn build_tick_array_bitmap_extension_info<'info>(
         param: &mut BuildExtensionAccountInfo,
-    ) -> AccountInfo {
+    ) -> AccountInfo<'_> {
         let disc_bytes = [60, 150, 36, 219, 97, 128, 139, 153];
         for i in 0..8 {
             param.data[i] = disc_bytes[i];
