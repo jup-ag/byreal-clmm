@@ -417,7 +417,7 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
                 tick_math::get_sqrt_price_at_tick(tick_lower_index)?,
                 tick_math::get_sqrt_price_at_tick(tick_upper_index)?,
                 amount_0_max.checked_sub(amount_0_transfer_fee).unwrap(),
-            );
+            )?;
             #[cfg(feature = "enable-log")]
             msg!(
                 "liquidity: {}, amount_0_max:{}, amount_0_transfer_fee:{}",
@@ -435,7 +435,7 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
                 tick_math::get_sqrt_price_at_tick(tick_lower_index)?,
                 tick_math::get_sqrt_price_at_tick(tick_upper_index)?,
                 amount_1_max.checked_sub(amount_1_transfer_fee).unwrap(),
-            );
+            )?;
             #[cfg(feature = "enable-log")]
             msg!(
                 "liquidity: {}, amount_1_max:{}, amount_1_transfer_fee:{}",
@@ -445,7 +445,7 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
             );
         }
     }
-    assert!(*liquidity > 0);
+    require!(*liquidity > 0, ErrorCode::InvalidLiquidity);
     let liquidity_before = pool_state.liquidity;
 
     require_keys_eq!(tick_array_lower_loader.get_pool_id()?, pool_state.key());

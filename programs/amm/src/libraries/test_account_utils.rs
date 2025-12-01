@@ -16,7 +16,11 @@ pub fn mock_account_info<'a>(
     is_writable: bool,
     lamports: u64,
     data_len: usize,
-) -> (AccountInfo<'a>, Rc<RefCell<&'a mut u64>>, Rc<RefCell<&'a mut [u8]>>) {
+) -> (
+    AccountInfo<'a>,
+    Rc<RefCell<&'a mut u64>>,
+    Rc<RefCell<&'a mut [u8]>>,
+) {
     // 关键点：lamports 和 data 必须由测试持有所有权，以保证 &'static mut 引用有效期
     let lamports_box = Box::new(lamports);
     let data_vec = vec![0u8; data_len].into_boxed_slice();
@@ -61,7 +65,11 @@ pub fn mock_anchor_account_info<'a, 'b, T: ZeroCopy>(
     is_writable: bool,
     lamports: u64,
     account: &'b T,
-) -> (AccountInfo<'a>, Rc<RefCell<&'a mut u64>>, Rc<RefCell<&'a mut [u8]>>) {
+) -> (
+    AccountInfo<'a>,
+    Rc<RefCell<&'a mut u64>>,
+    Rc<RefCell<&'a mut [u8]>>,
+) {
     // 计算 data 长度：8 字节 discriminator + 序列化数据
     let mut buf = Vec::new();
     // 预留 discriminator + 内容
@@ -70,7 +78,8 @@ pub fn mock_anchor_account_info<'a, 'b, T: ZeroCopy>(
 
     // 构造 AccountInfo
     let data_len = buf.len();
-    let (ai, lamports_box, data_box) = mock_account_info(key, owner, is_signer, is_writable, lamports, data_len);
+    let (ai, lamports_box, data_box) =
+        mock_account_info(key, owner, is_signer, is_writable, lamports, data_len);
 
     data_box.borrow_mut().copy_from_slice(&buf);
 
@@ -88,7 +97,11 @@ pub fn mock_anchor_account_info_v2<'a, 'b, T: ZeroCopy>(
     lamports: u64,
     account: &'b T,
     extra_account_data: Option<&[u8]>,
-) -> (AccountInfo<'a>, Rc<RefCell<&'a mut u64>>, Rc<RefCell<&'a mut [u8]>>) {
+) -> (
+    AccountInfo<'a>,
+    Rc<RefCell<&'a mut u64>>,
+    Rc<RefCell<&'a mut [u8]>>,
+) {
     // 计算 data 长度：8 字节 discriminator + 序列化数据
     let mut buf = Vec::new();
     // 预留 discriminator + 内容
@@ -101,7 +114,8 @@ pub fn mock_anchor_account_info_v2<'a, 'b, T: ZeroCopy>(
 
     // 构造 AccountInfo
     let data_len = buf.len();
-    let (ai, lamports_box, data_box) = mock_account_info(key, owner, is_signer, is_writable, lamports, data_len);
+    let (ai, lamports_box, data_box) =
+        mock_account_info(key, owner, is_signer, is_writable, lamports, data_len);
 
     data_box.borrow_mut().copy_from_slice(&buf);
 
@@ -115,6 +129,10 @@ pub fn mock_anchor_account_info_v3<'a, 'b, T: ZeroCopy>(
     owner: &'a Pubkey,
     account: &'b T,
     extra_account_data: Option<&[u8]>,
-) -> (AccountInfo<'a>, Rc<RefCell<&'a mut u64>>, Rc<RefCell<&'a mut [u8]>>) {
+) -> (
+    AccountInfo<'a>,
+    Rc<RefCell<&'a mut u64>>,
+    Rc<RefCell<&'a mut [u8]>>,
+) {
     mock_anchor_account_info_v2(key, owner, false, true, 0, account, extra_account_data)
 }

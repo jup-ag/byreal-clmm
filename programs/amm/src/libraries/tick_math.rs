@@ -1,4 +1,7 @@
-use crate::{error::ErrorCode, libraries::big_num::U128};
+use crate::{
+    error::ErrorCode,
+    libraries::big_num::{CheckedAsU128, U128},
+};
 
 use anchor_lang::require;
 
@@ -117,7 +120,9 @@ pub fn get_sqrt_price_at_tick(tick: i32) -> Result<u128, anchor_lang::error::Err
         ratio = U128::MAX / ratio;
     }
 
-    Ok(ratio.as_u128())
+    ratio
+        .checked_as_u128()
+        .map_err(|_| ErrorCode::CalculateOverflow.into())
 }
 
 /// Calculates the greatest tick value such that get_sqrt_price_at_tick(tick) <= ratio

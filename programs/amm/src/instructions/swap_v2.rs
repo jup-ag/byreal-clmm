@@ -96,10 +96,13 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
 
     // calculate specified amount because the amount includes transfer_fee as input and without transfer_fee as output
     let (amount_calculate_specified, transfer_fee) = if is_base_input {
-        let transfer_fee = util::get_transfer_fee(ctx.input_vault_mint.clone(), amount_specified).unwrap();
+        let transfer_fee =
+            util::get_transfer_fee(ctx.input_vault_mint.clone(), amount_specified).unwrap();
         (amount_specified - transfer_fee, transfer_fee)
     } else {
-        let transfer_fee = util::get_transfer_inverse_fee(ctx.output_vault_mint.clone(), amount_specified).unwrap();
+        let transfer_fee =
+            util::get_transfer_inverse_fee(ctx.output_vault_mint.clone(), amount_specified)
+                .unwrap();
         (amount_specified + transfer_fee, transfer_fee)
     };
 
@@ -112,9 +115,11 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
 
         require!(
             if zero_for_one {
-                ctx.input_vault.key() == pool_state.token_vault_0 && ctx.output_vault.key() == pool_state.token_vault_1
+                ctx.input_vault.key() == pool_state.token_vault_0
+                    && ctx.output_vault.key() == pool_state.token_vault_1
             } else {
-                ctx.input_vault.key() == pool_state.token_vault_1 && ctx.output_vault.key() == pool_state.token_vault_0
+                ctx.input_vault.key() == pool_state.token_vault_1
+                    && ctx.output_vault.key() == pool_state.token_vault_0
             },
             ErrorCode::InvalidInputPoolVault
         );
@@ -163,27 +168,31 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             amount_0,
             amount_1
         );
-        require!(amount_0 != 0 && amount_1 != 0, ErrorCode::TooSmallInputOrOutputAmount);
+        require!(
+            amount_0 != 0 && amount_1 != 0,
+            ErrorCode::TooSmallInputOrOutputAmount
+        );
     }
-    let (token_account_0, token_account_1, vault_0, vault_1, vault_0_mint, vault_1_mint) = if zero_for_one {
-        (
-            ctx.input_token_account.clone(),
-            ctx.output_token_account.clone(),
-            ctx.input_vault.clone(),
-            ctx.output_vault.clone(),
-            ctx.input_vault_mint.clone(),
-            ctx.output_vault_mint.clone(),
-        )
-    } else {
-        (
-            ctx.output_token_account.clone(),
-            ctx.input_token_account.clone(),
-            ctx.output_vault.clone(),
-            ctx.input_vault.clone(),
-            ctx.output_vault_mint.clone(),
-            ctx.input_vault_mint.clone(),
-        )
-    };
+    let (token_account_0, token_account_1, vault_0, vault_1, vault_0_mint, vault_1_mint) =
+        if zero_for_one {
+            (
+                ctx.input_token_account.clone(),
+                ctx.output_token_account.clone(),
+                ctx.input_vault.clone(),
+                ctx.output_vault.clone(),
+                ctx.input_vault_mint.clone(),
+                ctx.output_vault_mint.clone(),
+            )
+        } else {
+            (
+                ctx.output_token_account.clone(),
+                ctx.input_token_account.clone(),
+                ctx.output_vault.clone(),
+                ctx.input_vault.clone(),
+                ctx.output_vault_mint.clone(),
+                ctx.input_vault_mint.clone(),
+            )
+        };
 
     // user or pool real amount delta without tranfer fee
     let amount_0_without_fee;
@@ -353,7 +362,11 @@ pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
             ErrorCode::TooLittleOutputReceived
         );
     } else {
-        require_gte!(other_amount_threshold, amount_result, ErrorCode::TooMuchInputPaid);
+        require_gte!(
+            other_amount_threshold,
+            amount_result,
+            ErrorCode::TooMuchInputPaid
+        );
     }
 
     Ok(())

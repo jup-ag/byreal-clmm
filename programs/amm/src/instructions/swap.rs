@@ -1,6 +1,9 @@
 use crate::error::ErrorCode;
 use crate::libraries::{
-    big_num::U128, fixed_point_64, full_math::MulDiv, liquidity_math, swap_math, tick_math,
+    big_num::{CheckedAsU128, U128},
+    fixed_point_64,
+    full_math::MulDiv,
+    liquidity_math, swap_math, tick_math,
 };
 use crate::states::*;
 use crate::util::*;
@@ -412,13 +415,14 @@ pub fn swap_internal<'b, 'info>(
         if state.liquidity > 0 {
             let fee_growth_global_x64_delta = U128::from(step.fee_amount)
                 .mul_div_floor(U128::from(fixed_point_64::Q64), U128::from(state.liquidity))
-                .unwrap()
-                .as_u128();
+                .ok_or(ErrorCode::CalculateOverflow)?
+                .checked_as_u128()
+                .map_err(|_| error!(ErrorCode::CalculateOverflow))?;
 
             state.fee_growth_global_x64 = state
                 .fee_growth_global_x64
                 .checked_add(fee_growth_global_x64_delta)
-                .unwrap();
+                .ok_or(ErrorCode::CalculateOverflow)?;
             state.fee_amount = state.fee_amount.checked_add(step.fee_amount).unwrap();
             #[cfg(feature = "enable-log")]
             msg!(
@@ -1057,7 +1061,8 @@ mod swap_test {
                     tick_math::get_sqrt_price_at_tick(position_param.tick_upper).unwrap(),
                     position_param.amount_0,
                     position_param.amount_1,
-                );
+                )
+                .unwrap();
 
                 let (amount_0, amount_1) = get_delta_amounts_signed(
                     start_tick,

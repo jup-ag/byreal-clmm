@@ -1,6 +1,9 @@
 use super::full_math::MulDiv;
 use super::unsafe_math::UnsafeMathTrait;
 use super::{fixed_point_64, U256};
+use crate::error::ErrorCode;
+use crate::libraries::big_num::CheckedAsU128;
+use anchor_lang::prelude::*;
 
 /// Gets the next sqrt price √P' given a delta of token_0
 ///
@@ -32,9 +35,9 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
     liquidity: u128,
     amount: u64,
     add: bool,
-) -> u128 {
+) -> Result<u128> {
     if amount == 0 {
-        return sqrt_price_x64;
+        return Ok(sqrt_price_x64);
     };
     let numerator_1 = (U256::from(liquidity)) << fixed_point_64::RESOLUTION;
 
@@ -44,8 +47,9 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
             if denominator >= numerator_1 {
                 return numerator_1
                     .mul_div_ceil(U256::from(sqrt_price_x64), denominator)
-                    .unwrap()
-                    .as_u128();
+                    .ok_or(ErrorCode::CalculateOverflow)?
+                    .checked_as_u128()
+                    .map_err(|_| error!(ErrorCode::CalculateOverflow));
             };
         }
 
@@ -53,20 +57,24 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
             numerator_1,
             (numerator_1 / U256::from(sqrt_price_x64))
                 .checked_add(U256::from(amount))
-                .unwrap(),
+                .ok_or(ErrorCode::CalculateOverflow)?,
         )
-        .as_u128()
+        .checked_as_u128()
+        .map_err(|_| error!(ErrorCode::CalculateOverflow))
     } else {
         let product = U256::from(
             U256::from(amount)
                 .checked_mul(U256::from(sqrt_price_x64))
-                .unwrap(),
+                .ok_or(ErrorCode::CalculateOverflow)?,
         );
-        let denominator = numerator_1.checked_sub(product).unwrap();
+        let denominator = numerator_1
+            .checked_sub(product)
+            .ok_or(ErrorCode::CalculateOverflow)?;
         numerator_1
             .mul_div_ceil(U256::from(sqrt_price_x64), denominator)
-            .unwrap()
-            .as_u128()
+            .ok_or(ErrorCode::CalculateOverflow)?
+            .checked_as_u128()
+            .map_err(|_| error!(ErrorCode::CalculateOverflow))
     }
 }
 
@@ -89,16 +97,26 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
     liquidity: u128,
     amount: u64,
     add: bool,
-) -> u128 {
+) -> Result<u128> {
     if add {
         let quotient = U256::from(u128::from(amount) << fixed_point_64::RESOLUTION) / liquidity;
-        sqrt_price_x64.checked_add(quotient.as_u128()).unwrap()
+        let quotient_u128 = quotient
+            .checked_as_u128()
+            .map_err(|_| error!(ErrorCode::CalculateOverflow))?;
+        sqrt_price_x64
+            .checked_add(quotient_u128)
+            .ok_or(ErrorCode::CalculateOverflow.into())
     } else {
         let quotient = U256::div_rounding_up(
             U256::from(u128::from(amount) << fixed_point_64::RESOLUTION),
             U256::from(liquidity),
         );
-        sqrt_price_x64.checked_sub(quotient.as_u128()).unwrap()
+        let quotient_u128 = quotient
+            .checked_as_u128()
+            .map_err(|_| error!(ErrorCode::CalculateOverflow))?;
+        sqrt_price_x64
+            .checked_sub(quotient_u128)
+            .ok_or(ErrorCode::CalculateOverflow.into())
     }
 }
 
@@ -109,9 +127,9 @@ pub fn get_next_sqrt_price_from_input(
     liquidity: u128,
     amount_in: u64,
     zero_for_one: bool,
-) -> u128 {
-    assert!(sqrt_price_x64 > 0);
-    assert!(liquidity > 0);
+) -> Result<u128> {
+    require!(sqrt_price_x64 > 0, ErrorCode::SqrtPriceX64);
+    require!(liquidity > 0, ErrorCode::InvalidLiquidity);
 
     // round to make sure that we don't pass the target price
     if zero_for_one {
@@ -130,9 +148,9 @@ pub fn get_next_sqrt_price_from_output(
     liquidity: u128,
     amount_out: u64,
     zero_for_one: bool,
-) -> u128 {
-    assert!(sqrt_price_x64 > 0);
-    assert!(liquidity > 0);
+) -> Result<u128> {
+    require!(sqrt_price_x64 > 0, ErrorCode::SqrtPriceX64);
+    require!(liquidity > 0, ErrorCode::InvalidLiquidity);
 
     if zero_for_one {
         get_next_sqrt_price_from_amount_1_rounding_down(
