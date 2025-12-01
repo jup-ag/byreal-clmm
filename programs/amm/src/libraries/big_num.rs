@@ -27,11 +27,14 @@ macro_rules! construct_bignum {
             }
         }
 
-        impl $crate::core_::convert::From<i128> for $name {
-            fn from(value: i128) -> $name {
-                match value >= 0 {
-                    true => From::from(value as u128),
-                    false => { panic!("Unsigned integer can't be created from negative value"); }
+        impl $crate::core_::convert::TryFrom<i128> for $name {
+            type Error = &'static str;
+
+            fn try_from(value: i128) -> $crate::core_::result::Result<$name, &'static str> {
+                if value >= 0 {
+                    Ok(From::from(value as u128))
+                } else {
+                    Err("unsigned integer can't be created from negative value")
                 }
             }
         }
@@ -45,20 +48,16 @@ macro_rules! construct_bignum {
             }
 
             /// Conversion to u128 with overflow checking
-            ///
-            /// # Panics
-            ///
-            /// Panics if the number is larger than 2^128.
             #[inline]
-            pub fn as_u128(&self) -> u128 {
+            pub fn as_u128(&self) -> $crate::core_::result::Result<u128, &'static str> {
                 let &$name(ref arr) = self;
                 for i in 2..$n_words {
                     if arr[i] != 0 {
-                        panic!("Integer overflow when casting to u128")
+                        return Err("integer overflow when casting to u128");
                     }
 
                 }
-                self.low_u128()
+                Ok(self.low_u128())
             }
         }
 
@@ -114,22 +113,18 @@ macro_rules! construct_bignum {
 			}
 		}
 
-        impl $name {
+		impl $name {
 			/// Maximum value.
 			pub const MAX: $name = $name([u64::max_value(); $n_words]);
 
             /// Conversion to usize with overflow checking
-			///
-			/// # Panics
-			///
-			/// Panics if the number is larger than usize::max_value().
 			#[inline]
-			pub fn as_usize(&self) -> usize {
+			pub fn as_usize(&self) -> $crate::core_::result::Result<usize, &'static str> {
 				let &$name(ref arr) = self;
 				if !self.fits_word() || arr[0] > usize::max_value() as u64 {
-					panic!("Integer overflow when casting to usize")
+					return Err("integer overflow when casting to usize");
 				}
-				arr[0] as usize
+				Ok(arr[0] as usize)
 			}
 
 			/// Whether this is zero.
@@ -341,4 +336,34 @@ macro_rules! construct_bignum {
 }
 construct_bignum! {
     pub struct U1024(16);
+}
+
+/// Fallible conversion helpers to primitive integers.
+pub trait CheckedAsU128 {
+    fn checked_as_u128(&self) -> core::result::Result<u128, &'static str>;
+}
+
+impl CheckedAsU128 for U128 {
+    fn checked_as_u128(&self) -> core::result::Result<u128, &'static str> {
+        // U128 always fits in u128
+        Ok(self.as_u128())
+    }
+}
+
+impl CheckedAsU128 for U256 {
+    fn checked_as_u128(&self) -> core::result::Result<u128, &'static str> {
+        core::convert::TryFrom::try_from(*self)
+    }
+}
+
+impl CheckedAsU128 for U512 {
+    fn checked_as_u128(&self) -> core::result::Result<u128, &'static str> {
+        core::convert::TryFrom::try_from(*self)
+    }
+}
+
+impl CheckedAsU128 for U1024 {
+    fn checked_as_u128(&self) -> core::result::Result<u128, &'static str> {
+        core::convert::TryFrom::try_from(*self)
+    }
 }

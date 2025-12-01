@@ -25,7 +25,8 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
     #[inline(never)]
     pub fn try_from(acc_info: &AccountInfo<'info>) -> Result<AccountLoad<'info, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
+                .with_pubkeys((*acc_info.owner, T::owner())));
         }
         let data: &[u8] = &acc_info.try_borrow_data()?;
         if data.len() < T::DISCRIMINATOR.len() {
@@ -42,9 +43,13 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
 
     /// Constructs a new `Loader` from an uninitialized account.
     #[inline(never)]
-    pub fn try_from_unchecked(_program_id: &Pubkey, acc_info: &AccountInfo<'info>) -> Result<AccountLoad<'info, T>> {
+    pub fn try_from_unchecked(
+        _program_id: &Pubkey,
+        acc_info: &AccountInfo<'info>,
+    ) -> Result<AccountLoad<'info, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
+                .with_pubkeys((*acc_info.owner, T::owner())));
         }
         Ok(AccountLoad::new(acc_info.clone()))
     }
@@ -81,7 +86,8 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
     /// So it is necessary to check the owner
     pub fn load_data_mut<'a>(acc_info: &'a AccountInfo) -> Result<RefMut<'a, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
+                .with_pubkeys((*acc_info.owner, T::owner())));
         }
         if !acc_info.is_writable {
             return Err(ErrorCode::AccountNotMutable.into());

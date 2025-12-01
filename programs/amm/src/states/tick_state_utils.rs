@@ -37,7 +37,10 @@ impl TickState {
         if TickState::check_is_out_of_boundary(tick) {
             return err!(ErrorCode::InvalidTickIndex);
         }
-        require!(tick % i32::from(tick_spacing) == 0, ErrorCode::TickAndSpacingNotMatch);
+        require!(
+            tick % i32::from(tick_spacing) == 0,
+            ErrorCode::TickAndSpacingNotMatch
+        );
         self.tick = tick;
         Ok(())
     }
@@ -53,7 +56,8 @@ impl TickState {
         reward_infos: &[RewardInfo; REWARD_NUM],
     ) -> Result<bool> {
         let liquidity_gross_before = self.liquidity_gross;
-        let liquidity_gross_after = liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
+        let liquidity_gross_after =
+            liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
 
         // Either liquidity_gross_after becomes 0 (uninitialized) XOR liquidity_gross_before
         // was zero (initialized)
@@ -144,7 +148,11 @@ impl TickUtils {
     }
 
     /// Get tick's offset in tick array, tick must be include in tick array， otherwise throw an error
-    pub fn get_tick_offset_in_tick_array(start_tick_index: i32, tick_index: i32, tick_spacing: u16) -> Result<usize> {
+    pub fn get_tick_offset_in_tick_array(
+        start_tick_index: i32,
+        tick_index: i32,
+        tick_spacing: u16,
+    ) -> Result<usize> {
         require!(tick_index >= start_tick_index, ErrorCode::InvalidTickIndex);
 
         let offset_in_array = ((tick_index - start_tick_index) / i32::from(tick_spacing)) as usize;
@@ -167,9 +175,19 @@ impl TickUtils {
     }
 
     /// check that the tick_array_start_index is correct for the given tick_index and tick_spacing
-    pub fn check_tick_array_start_index(tick_array_start_index: i32, tick_index: i32, tick_spacing: u16) -> Result<()> {
-        require!(tick_index >= tick_math::MIN_TICK, ErrorCode::TickLowerOverflow);
-        require!(tick_index <= tick_math::MAX_TICK, ErrorCode::TickUpperOverflow);
+    pub fn check_tick_array_start_index(
+        tick_array_start_index: i32,
+        tick_index: i32,
+        tick_spacing: u16,
+    ) -> Result<()> {
+        require!(
+            tick_index >= tick_math::MIN_TICK,
+            ErrorCode::TickLowerOverflow
+        );
+        require!(
+            tick_index <= tick_math::MAX_TICK,
+            ErrorCode::TickUpperOverflow
+        );
         require_eq!(0, tick_index % i32::from(tick_spacing));
         let expect_start_index = TickUtils::get_array_start_index(tick_index, tick_spacing);
         require_eq!(tick_array_start_index, expect_start_index);
@@ -179,7 +197,10 @@ impl TickUtils {
     /// Common checks for valid tick inputs.
     ///
     pub fn check_ticks_order(tick_lower_index: i32, tick_upper_index: i32) -> Result<()> {
-        require!(tick_lower_index < tick_upper_index, ErrorCode::TickInvalidOrder);
+        require!(
+            tick_lower_index < tick_upper_index,
+            ErrorCode::TickInvalidOrder
+        );
         Ok(())
     }
 
@@ -195,7 +216,10 @@ impl TickUtils {
     ) -> (u128, u128) {
         // calculate fee growth below
         let (fee_growth_below_0_x64, fee_growth_below_1_x64) = if tick_current >= tick_lower.tick {
-            (tick_lower.fee_growth_outside_0_x64, tick_lower.fee_growth_outside_1_x64)
+            (
+                tick_lower.fee_growth_outside_0_x64,
+                tick_lower.fee_growth_outside_1_x64,
+            )
         } else {
             (
                 fee_growth_global_0_x64
@@ -209,7 +233,10 @@ impl TickUtils {
 
         // Calculate fee growth above
         let (fee_growth_above_0_x64, fee_growth_above_1_x64) = if tick_current < tick_upper.tick {
-            (tick_upper.fee_growth_outside_0_x64, tick_upper.fee_growth_outside_1_x64)
+            (
+                tick_upper.fee_growth_outside_0_x64,
+                tick_upper.fee_growth_outside_1_x64,
+            )
         } else {
             (
                 fee_growth_global_0_x64

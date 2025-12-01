@@ -30,7 +30,7 @@ pub struct ClosePosition<'info> {
     pub position_nft_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut, 
+        mut,
         seeds = [POSITION_SEED.as_bytes(), position_nft_mint.key().as_ref()],
         bump,
         close = nft_owner

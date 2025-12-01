@@ -58,7 +58,7 @@ pub fn compute_swap_step(
                     liquidity,
                     amount_remaining_less_fee,
                     zero_for_one,
-                )
+                )?
             };
     } else {
         let amount_out = calculate_amount_in_range(
@@ -82,7 +82,7 @@ pub fn compute_swap_step(
                     liquidity,
                     amount_remaining,
                     zero_for_one,
-                )
+                )?
             }
     }
 

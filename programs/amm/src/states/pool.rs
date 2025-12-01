@@ -1,6 +1,6 @@
 use crate::error::ErrorCode;
 use crate::libraries::{
-    big_num::{U1024, U128, U256},
+    big_num::{CheckedAsU128, U1024, U128, U256},
     check_current_tick_array_is_initialized, fixed_point_64,
     full_math::MulDiv,
     tick_array_bit_map, tick_math,
@@ -473,10 +473,14 @@ impl PoolState {
                     )
                     .unwrap();
 
+                let reward_growth_delta_u128 = reward_growth_delta
+                    .checked_as_u128()
+                    .map_err(|_| error!(ErrorCode::CalculateOverflow))?;
+
                 reward_info.reward_growth_global_x64 = reward_info
                     .reward_growth_global_x64
-                    .checked_add(reward_growth_delta.as_u128())
-                    .unwrap();
+                    .checked_add(reward_growth_delta_u128)
+                    .ok_or(ErrorCode::CalculateOverflow)?;
 
                 reward_info.reward_total_emissioned = reward_info
                     .reward_total_emissioned

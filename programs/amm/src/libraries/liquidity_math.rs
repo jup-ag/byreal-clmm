@@ -1,5 +1,4 @@
-use super::big_num::U128;
-use super::big_num::U256;
+use super::big_num::{CheckedAsU128, U128, U256};
 use super::fixed_point_64;
 use super::full_math::MulDiv;
 use super::tick_math;
@@ -33,7 +32,7 @@ pub fn get_liquidity_from_amount_0(
     mut sqrt_ratio_a_x64: u128,
     mut sqrt_ratio_b_x64: u128,
     amount_0: u64,
-) -> u128 {
+) -> Result<u128> {
     // sqrt_ratio_a_x64 should hold the smaller value
     if sqrt_ratio_a_x64 > sqrt_ratio_b_x64 {
         std::mem::swap(&mut sqrt_ratio_a_x64, &mut sqrt_ratio_b_x64);
@@ -43,15 +42,16 @@ pub fn get_liquidity_from_amount_0(
             U128::from(sqrt_ratio_b_x64),
             U128::from(fixed_point_64::Q64),
         )
-        .unwrap();
+        .ok_or(ErrorCode::CalculateOverflow)?;
 
     U128::from(amount_0)
         .mul_div_floor(
             intermediate,
             U128::from(sqrt_ratio_b_x64 - sqrt_ratio_a_x64),
         )
-        .unwrap()
-        .as_u128()
+        .ok_or(ErrorCode::CalculateOverflow)?
+        .checked_as_u128()
+        .map_err(|_| ErrorCode::CalculateOverflow.into())
 }
 
 /// Computes the amount of liquidity received for a given amount of token_1 and price range
@@ -60,7 +60,7 @@ pub fn get_liquidity_from_amount_1(
     mut sqrt_ratio_a_x64: u128,
     mut sqrt_ratio_b_x64: u128,
     amount_1: u64,
-) -> u128 {
+) -> Result<u128> {
     // sqrt_ratio_a_x64 should hold the smaller value
     if sqrt_ratio_a_x64 > sqrt_ratio_b_x64 {
         std::mem::swap(&mut sqrt_ratio_a_x64, &mut sqrt_ratio_b_x64);
@@ -71,8 +71,9 @@ pub fn get_liquidity_from_amount_1(
             U128::from(fixed_point_64::Q64),
             U128::from(sqrt_ratio_b_x64 - sqrt_ratio_a_x64),
         )
-        .unwrap()
-        .as_u128()
+        .ok_or(ErrorCode::CalculateOverflow)?
+        .checked_as_u128()
+        .map_err(|_| ErrorCode::CalculateOverflow.into())
 }
 
 /// Computes the maximum amount of liquidity received for a given amount of token_0, token_1, the current
@@ -83,7 +84,7 @@ pub fn get_liquidity_from_amounts(
     mut sqrt_ratio_b_x64: u128,
     amount_0: u64,
     amount_1: u64,
-) -> u128 {
+) -> Result<u128> {
     // sqrt_ratio_a_x64 should hold the smaller value
     if sqrt_ratio_a_x64 > sqrt_ratio_b_x64 {
         std::mem::swap(&mut sqrt_ratio_a_x64, &mut sqrt_ratio_b_x64);
@@ -95,10 +96,10 @@ pub fn get_liquidity_from_amounts(
     } else if sqrt_ratio_x64 < sqrt_ratio_b_x64 {
         // If P_lower < P < P_upper, active liquidity is the minimum of the liquidity provided
         // by token_0 and token_1
-        u128::min(
-            get_liquidity_from_amount_0(sqrt_ratio_x64, sqrt_ratio_b_x64, amount_0),
-            get_liquidity_from_amount_1(sqrt_ratio_a_x64, sqrt_ratio_x64, amount_1),
-        )
+        Ok(u128::min(
+            get_liquidity_from_amount_0(sqrt_ratio_x64, sqrt_ratio_b_x64, amount_0)?,
+            get_liquidity_from_amount_1(sqrt_ratio_a_x64, sqrt_ratio_x64, amount_1)?,
+        ))
     } else {
         // If P ≥ P_upper, only token_1 liquidity is active
         get_liquidity_from_amount_1(sqrt_ratio_a_x64, sqrt_ratio_b_x64, amount_1)
@@ -112,7 +113,7 @@ pub fn get_liquidity_from_single_amount_0(
     mut sqrt_ratio_a_x64: u128,
     mut sqrt_ratio_b_x64: u128,
     amount_0: u64,
-) -> u128 {
+) -> Result<u128> {
     // sqrt_ratio_a_x64 should hold the smaller value
     if sqrt_ratio_a_x64 > sqrt_ratio_b_x64 {
         std::mem::swap(&mut sqrt_ratio_a_x64, &mut sqrt_ratio_b_x64);
@@ -126,8 +127,8 @@ pub fn get_liquidity_from_single_amount_0(
         // by token_0 and token_1
         get_liquidity_from_amount_0(sqrt_ratio_x64, sqrt_ratio_b_x64, amount_0)
     } else {
-        // If P ≥ P_upper, only token_1 liquidity is active
-        0
+        // If P ≥ P_upper, only token_0 liquidity is active
+        Ok(0)
     }
 }
 
@@ -138,7 +139,7 @@ pub fn get_liquidity_from_single_amount_1(
     mut sqrt_ratio_a_x64: u128,
     mut sqrt_ratio_b_x64: u128,
     amount_1: u64,
-) -> u128 {
+) -> Result<u128> {
     // sqrt_ratio_a_x64 should hold the smaller value
     if sqrt_ratio_a_x64 > sqrt_ratio_b_x64 {
         std::mem::swap(&mut sqrt_ratio_a_x64, &mut sqrt_ratio_b_x64);
@@ -146,7 +147,7 @@ pub fn get_liquidity_from_single_amount_1(
 
     if sqrt_ratio_x64 <= sqrt_ratio_a_x64 {
         // If P ≤ P_lower, only token_0 liquidity is active
-        0
+        Ok(0)
     } else if sqrt_ratio_x64 < sqrt_ratio_b_x64 {
         // If P_lower < P < P_upper, active liquidity is the minimum of the liquidity provided
         // by token_0 and token_1
