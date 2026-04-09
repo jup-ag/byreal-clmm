@@ -4,8 +4,7 @@ use crate::libraries::tick_math;
 use crate::states::*;
 use crate::util::*;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program;
-use anchor_lang::system_program::{transfer, Transfer};
+use anchor_lang::solana_program::{self, program::invoke, system_instruction};
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{
     create_metadata_accounts_v3,
@@ -13,12 +12,11 @@ use anchor_spl::metadata::{
     CreateMetadataAccountsV3, Metadata,
 };
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use anchor_spl::token_2022::{self, spl_token_2022::instruction::AuthorityType, Token2022};
+use anchor_spl::token_2022::{self, Token2022};
 use anchor_spl::token_2022_extensions::spl_token_metadata_interface;
 use anchor_spl::token_interface;
-use spl_token_2022::{
-    self,
-    extension::{BaseStateWithExtensions, StateWithExtensions},
+use spl_token_2022_interface::{
+    extension::StateWithExtensions, instruction::AuthorityType, state::Mint as Token2022Mint,
 };
 use std::cell::RefMut;
 #[cfg(feature = "enable-log")]
@@ -153,8 +151,8 @@ pub struct OpenPosition<'info> {
     // pub tick_array_bitmap: AccountLoader<'info, TickArrayBitmapExtension>,
 }
 
-pub fn open_position_v1<'a, 'b, 'c: 'info, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, OpenPosition<'info>>,
+pub fn open_position_v1<'info>(
+    ctx: Context<'info, OpenPosition<'info>>,
     liquidity: u128,
     amount_0_max: u64,
     amount_1_max: u64,
@@ -202,7 +200,7 @@ pub fn open_position_v1<'a, 'b, 'c: 'info, 'info>(
     )
 }
 
-pub fn open_position<'a, 'b, 'c: 'info, 'info>(
+pub fn open_position<'b, 'c: 'info, 'info>(
     payer: &'b Signer<'info>,
     position_nft_owner: &'b UncheckedAccount<'info>,
     position_nft_mint: &'b AccountInfo<'info>,
@@ -717,7 +715,7 @@ fn mint_nft_and_remove_mint_authority<'info>(
     let pool_state = pool_state_loader.load()?;
     let seeds = pool_state.seeds();
 
-    let token_program_info = if position_nft_mint_info.owner == token_program.key {
+    let token_program_info = if position_nft_mint_info.owner == &token_program.key() {
         token_program.to_account_info()
     } else {
         token_program_2022.unwrap().to_account_info()
@@ -756,7 +754,7 @@ fn mint_nft_and_remove_mint_authority<'info>(
     // Mint the NFT
     token_2022::mint_to(
         CpiContext::new_with_signer(
-            token_program_info.to_account_info(),
+            token_program_info.key(),
             token_2022::MintTo {
                 mint: position_nft_mint_info.clone(),
                 to: position_nft_account.to_account_info(),
@@ -770,7 +768,7 @@ fn mint_nft_and_remove_mint_authority<'info>(
     // Disable minting
     token_2022::set_authority(
         CpiContext::new_with_signer(
-            token_program_info.to_account_info(),
+            token_program_info.key(),
             token_2022::SetAuthority {
                 current_authority: pool_state_loader.to_account_info(),
                 account_or_mint: position_nft_mint_info,
@@ -808,7 +806,7 @@ fn initialize_metadata_account<'info>(
 ) -> Result<()> {
     create_metadata_accounts_v3(
         CpiContext::new_with_signer(
-            metadata_program.to_account_info(),
+            metadata_program.key(),
             CreateMetadataAccountsV3 {
                 metadata: metadata_account.to_account_info(),
                 mint: position_nft_mint.to_account_info(),
@@ -859,29 +857,30 @@ pub fn initialize_token_metadata_extension<'info>(
     };
 
     let mint_data = position_nft_mint.try_borrow_data()?;
-    let mint_state_unpacked =
-        StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
-    let new_account_len =
-        mint_state_unpacked.try_get_new_account_len_for_variable_len_extension(&metadata)?;
+    StateWithExtensions::<Token2022Mint>::unpack(&mint_data)
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
+    let new_account_len = position_nft_mint.data_len().saturating_add(
+        metadata
+            .tlv_size_of()
+            .map_err(|_| error!(ErrorCode::InvalidAccount))?,
+    );
     let new_rent_exempt_lamports = Rent::get()?.minimum_balance(new_account_len);
     let additional_lamports = new_rent_exempt_lamports.saturating_sub(position_nft_mint.lamports());
     // CPI call will borrow the account data
     drop(mint_data);
 
-    let cpi_context = CpiContext::new(
-        token_2022_program.to_account_info(),
-        Transfer {
-            from: payer.to_account_info(),
-            to: position_nft_mint.to_account_info(),
-        },
-    );
-    transfer(cpi_context, additional_lamports)?;
+    if additional_lamports > 0 {
+        invoke(
+            &system_instruction::transfer(&payer.key(), position_nft_mint.key, additional_lamports),
+            &[payer.to_account_info(), position_nft_mint.to_account_info()],
+        )?;
+    }
 
     solana_program::program::invoke_signed(
         &spl_token_metadata_interface::instruction::initialize(
-            token_2022_program.key,
+            &token_2022_program.key(),
             position_nft_mint.key,
-            metadata_update_authority.key,
+            &metadata_update_authority.key(),
             position_nft_mint.key,
             &mint_authority.key(),
             metadata.name,

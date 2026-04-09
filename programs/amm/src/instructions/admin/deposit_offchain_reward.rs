@@ -107,7 +107,7 @@ pub fn deposit_offchain_reward(
         authority: ctx.accounts.payer.to_account_info(),
     };
     token_interface::transfer_checked(
-        CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
+        CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts),
         amount,
         decimals,
     )?;

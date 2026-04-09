@@ -114,11 +114,7 @@ pub fn withdraw_offchain_reward(
     };
 
     token_interface::transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            &[&seeds],
-        ),
+        CpiContext::new_with_signer(ctx.accounts.token_program.key(), cpi_accounts, &[&seeds]),
         amount,
         decimals,
     )?;

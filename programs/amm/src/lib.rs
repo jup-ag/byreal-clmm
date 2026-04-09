@@ -190,8 +190,8 @@ pub mod byreal_clmm {
     /// * `ctx`- The context of accounts
     /// * `new_owner`- new owner pubkey
     ///
-    pub fn transfer_reward_owner<'a, 'b, 'c, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, TransferRewardOwner<'info>>,
+    pub fn transfer_reward_owner<'info>(
+        ctx: Context<'info, TransferRewardOwner<'info>>,
         new_owner: Pubkey,
     ) -> Result<()> {
         instructions::transfer_reward_owner(ctx, new_owner)
@@ -234,9 +234,7 @@ pub mod byreal_clmm {
     ///
     /// * `ctx`- The context of accounts
     ///
-    pub fn update_reward_infos<'a, 'b, 'c, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, UpdateRewardInfos<'info>>,
-    ) -> Result<()> {
+    pub fn update_reward_infos<'info>(ctx: Context<'info, UpdateRewardInfos<'info>>) -> Result<()> {
         instructions::update_reward_infos(ctx)
     }
 
@@ -251,8 +249,8 @@ pub mod byreal_clmm {
     /// * `open_time` - reward open timestamp, must be set when starting a new cycle
     /// * `end_time` - reward end timestamp
     ///
-    pub fn set_reward_params<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, SetRewardParams<'info>>,
+    pub fn set_reward_params<'info>(
+        ctx: Context<'info, SetRewardParams<'info>>,
         reward_index: u8,
         emissions_per_second_x64: u128,
         open_time: u64,
@@ -337,8 +335,8 @@ pub mod byreal_clmm {
     /// * `amount_0_max` - The max amount of token_0 to spend, which serves as a slippage check
     /// * `amount_1_max` - The max amount of token_1 to spend, which serves as a slippage check
     ///
-    pub fn open_position<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, OpenPosition<'info>>,
+    pub fn open_position<'b, 'c, 'info>(
+        ctx: Context<'info, OpenPosition<'info>>,
         tick_lower_index: i32,
         tick_upper_index: i32,
         tick_array_lower_start_index: i32,
@@ -377,8 +375,8 @@ pub mod byreal_clmm {
     /// * `with_metadata` - The flag indicating whether to create NFT mint metadata
     /// * `base_flag` - if the liquidity specified as zero, true: calculate liquidity base amount_0_max otherwise base amount_1_max
     ///
-    pub fn open_position_v2<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, OpenPositionV2<'info>>,
+    pub fn open_position_v2<'info>(
+        ctx: Context<'info, OpenPositionV2<'info>>,
         tick_lower_index: i32,
         tick_upper_index: i32,
         tick_array_lower_start_index: i32,
@@ -418,8 +416,8 @@ pub mod byreal_clmm {
     /// * `with_metadata` - The flag indicating whether to create NFT mint metadata
     /// * `base_flag` - if the liquidity specified as zero, true: calculate liquidity base amount_0_max otherwise base amount_1_max
     ///
-    pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, OpenPositionWithToken22Nft<'info>>,
+    pub fn open_position_with_token22_nft<'info>(
+        ctx: Context<'info, OpenPositionWithToken22Nft<'info>>,
         tick_lower_index: i32,
         tick_upper_index: i32,
         tick_array_lower_start_index: i32,
@@ -450,9 +448,7 @@ pub mod byreal_clmm {
     ///
     /// * `ctx` - The context of accounts
     ///
-    pub fn close_position<'a, 'b, 'c, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, ClosePosition<'info>>,
-    ) -> Result<()> {
+    pub fn close_position<'info>(ctx: Context<'info, ClosePosition<'info>>) -> Result<()> {
         instructions::close_position(ctx)
     }
 
@@ -466,8 +462,8 @@ pub mod byreal_clmm {
     /// * `amount_0_max` - The max amount of token_0 to spend, which serves as a slippage check
     /// * `amount_1_max` - The max amount of token_1 to spend, which serves as a slippage check
     ///
-    pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, IncreaseLiquidity<'info>>,
+    pub fn increase_liquidity<'b, 'c, 'info>(
+        ctx: Context<'info, IncreaseLiquidity<'info>>,
         liquidity: u128,
         amount_0_max: u64,
         amount_1_max: u64,
@@ -486,8 +482,8 @@ pub mod byreal_clmm {
     /// * `amount_1_max` - The max amount of token_1 to spend, which serves as a slippage check
     /// * `base_flag` - must be specified if liquidity is zero, true: calculate liquidity base amount_0_max otherwise base amount_1_max
     ///
-    pub fn increase_liquidity_v2<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, IncreaseLiquidityV2<'info>>,
+    pub fn increase_liquidity_v2<'info>(
+        ctx: Context<'info, IncreaseLiquidityV2<'info>>,
         liquidity: u128,
         amount_0_max: u64,
         amount_1_max: u64,
@@ -509,8 +505,8 @@ pub mod byreal_clmm {
     /// * `amount_0_min` - The minimum amount of token_0 that should be accounted for the burned liquidity
     /// * `amount_1_min` - The minimum amount of token_1 that should be accounted for the burned liquidity
     ///
-    pub fn decrease_liquidity<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, DecreaseLiquidity<'info>>,
+    pub fn decrease_liquidity<'b, 'c, 'info>(
+        ctx: Context<'info, DecreaseLiquidity<'info>>,
         liquidity: u128,
         amount_0_min: u64,
         amount_1_min: u64,
@@ -527,8 +523,8 @@ pub mod byreal_clmm {
     /// * `amount_0_min` - The minimum amount of token_0 that should be accounted for the burned liquidity
     /// * `amount_1_min` - The minimum amount of token_1 that should be accounted for the burned liquidity
     ///
-    pub fn decrease_liquidity_v2<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, DecreaseLiquidityV2<'info>>,
+    pub fn decrease_liquidity_v2<'info>(
+        ctx: Context<'info, DecreaseLiquidityV2<'info>>,
         liquidity: u128,
         amount_0_min: u64,
         amount_1_min: u64,
@@ -547,8 +543,8 @@ pub mod byreal_clmm {
     /// * `sqrt_price_limit` - The Q64.64 sqrt price √P limit. If zero for one, the price cannot
     /// * `is_base_input` - swap base input or swap base output
     ///
-    pub fn swap<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, SwapSingle<'info>>,
+    pub fn swap<'info>(
+        ctx: Context<'info, SwapSingle<'info>>,
         amount: u64,
         other_amount_threshold: u64,
         sqrt_price_limit_x64: u128,
@@ -573,8 +569,8 @@ pub mod byreal_clmm {
     /// * `sqrt_price_limit` - The Q64.64 sqrt price √P limit. If zero for one, the price cannot
     /// * `is_base_input` - swap base input or swap base output
     ///
-    pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, SwapSingleV2<'info>>,
+    pub fn swap_v2<'info>(
+        ctx: Context<'info, SwapSingleV2<'info>>,
         amount: u64,
         other_amount_threshold: u64,
         sqrt_price_limit_x64: u128,
@@ -598,8 +594,8 @@ pub mod byreal_clmm {
     // /// * `amount_in` - Token amount to be swapped in
     // /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
     // ///
-    // pub fn swap_router_base_in<'a, 'b, 'c: 'info, 'info>(
-    //     ctx: Context<'a, 'b, 'c, 'info, SwapRouterBaseIn<'info>>,
+    // pub fn swap_router_base_in<'info>(
+    //     ctx: Context<'info, SwapRouterBaseIn<'info>>,
     //     amount_in: u64,
     //     amount_out_minimum: u64,
     // ) -> Result<()> {

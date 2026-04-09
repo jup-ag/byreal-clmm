@@ -2,8 +2,8 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::util::{burn, close_spl_account};
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::spl_token_2022;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use spl_token_2022_interface as spl_token_2022;
 
 #[derive(Accounts)]
 pub struct ClosePosition<'info> {
@@ -44,9 +44,7 @@ pub struct ClosePosition<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn close_position<'a, 'b, 'c, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, ClosePosition<'info>>,
-) -> Result<()> {
+pub fn close_position<'info>(ctx: Context<'info, ClosePosition<'info>>) -> Result<()> {
     if ctx.accounts.personal_position.liquidity != 0
         || ctx.accounts.personal_position.token_fees_owed_0 != 0
         || ctx.accounts.personal_position.token_fees_owed_1 != 0

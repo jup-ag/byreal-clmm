@@ -793,8 +793,8 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
     }
 }
 
-pub fn swap<'a, 'b, 'c: 'info, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, SwapSingle<'info>>,
+pub fn swap<'info>(
+    ctx: Context<'info, SwapSingle<'info>>,
     amount: u64,
     other_amount_threshold: u64,
     sqrt_price_limit_x64: u128,
