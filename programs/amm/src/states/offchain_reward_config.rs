@@ -1,5 +1,5 @@
 use crate::error::ErrorCode;
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::{prelude::*, solana_program::system_instruction, system_program};
 
 pub const OFFCHAIN_REWARD_SEED: &str = "offchain_reward";
 
@@ -98,16 +98,11 @@ impl OffchainRewardConfig {
                 system_program::ID,
                 ErrorCode::InvalidAccount
             );
-
-            system_program::transfer(
-                CpiContext::new(
-                    system_program,
-                    system_program::Transfer {
-                        from: rent_payer,
-                        to: reward_config,
-                    },
-                ),
-                top_up_lamports,
+            let ix =
+                system_instruction::transfer(rent_payer.key, reward_config.key, top_up_lamports);
+            anchor_lang::solana_program::program::invoke(
+                &ix,
+                &[rent_payer, reward_config, system_program],
             )?;
         }
 

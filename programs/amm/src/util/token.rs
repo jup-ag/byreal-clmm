@@ -3,23 +3,24 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use anchor_lang::{
     prelude::*,
-    solana_program,
+    solana_program::{self},
     system_program::{create_account, CreateAccount},
 };
-use anchor_spl::memo::spl_memo;
+use anchor_spl::memo::{spl_memo, ID as MEMO_PROGRAM_ID};
 use anchor_spl::token::{self, Token};
 use anchor_spl::token_2022::{
-    self, get_account_data_size, GetAccountDataSize, InitializeAccount3, InitializeImmutableOwner,
-    Token2022,
+    self, get_account_data_size, initialize_mint_close_authority, GetAccountDataSize,
+    InitializeAccount3, InitializeImmutableOwner, InitializeMintCloseAuthority, Token2022,
 };
+use anchor_spl::token_2022_extensions::{metadata_pointer_initialize, MetadataPointerInitialize};
 use anchor_spl::token_interface::{initialize_mint2, InitializeMint2, Mint, TokenInterface};
-use spl_token_2022::{
+use spl_token_2022_interface::{
     self,
     extension::{
-        metadata_pointer,
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
         BaseStateWithExtensions, ExtensionType, StateWithExtensions,
     },
+    state::Mint as Token2022Mint,
 };
 use std::collections::HashSet;
 
@@ -36,7 +37,8 @@ pub fn invoke_memo_instruction<'info>(
     memo_msg: &[u8],
     memo_program: AccountInfo<'info>,
 ) -> solana_program::entrypoint::ProgramResult {
-    let ix = spl_memo::build_memo(memo_msg, &Vec::new());
+    let signer_pubkeys: [&Pubkey; 0] = [];
+    let ix = spl_memo::build_memo(&MEMO_PROGRAM_ID, memo_msg, &signer_pubkeys);
     let accounts = vec![memo_program];
     solana_program::program::invoke(&ix, &accounts[..])
 }
@@ -58,25 +60,39 @@ pub fn transfer_from_user_to_pool_vault<'info>(
     match (mint, token_program_2022) {
         (Some(mint), Some(token_program_2022)) => {
             if from_token_info.owner == token_program_2022.key {
-                token_program_info = token_program_2022.to_account_info()
+                token_program_info = token_program_2022.to_account_info();
+                token_2022::transfer_checked(
+                    CpiContext::new(
+                        *token_program_info.key,
+                        token_2022::TransferChecked {
+                            from: from_token_info,
+                            to: to_vault.to_account_info(),
+                            authority: signer.to_account_info(),
+                            mint: mint.to_account_info(),
+                        },
+                    ),
+                    amount,
+                    mint.decimals,
+                )
+            } else {
+                token::transfer_checked(
+                    CpiContext::new(
+                        *token_program_info.key,
+                        token::TransferChecked {
+                            from: from_token_info,
+                            to: to_vault.to_account_info(),
+                            authority: signer.to_account_info(),
+                            mint: mint.to_account_info(),
+                        },
+                    ),
+                    amount,
+                    mint.decimals,
+                )
             }
-            token_2022::transfer_checked(
-                CpiContext::new(
-                    token_program_info,
-                    token_2022::TransferChecked {
-                        from: from_token_info,
-                        to: to_vault.to_account_info(),
-                        authority: signer.to_account_info(),
-                        mint: mint.to_account_info(),
-                    },
-                ),
-                amount,
-                mint.decimals,
-            )
         }
         _ => token::transfer(
             CpiContext::new(
-                token_program_info,
+                *token_program_info.key,
                 token::Transfer {
                     from: from_token_info,
                     to: to_vault.to_account_info(),
@@ -105,26 +121,41 @@ pub fn transfer_from_pool_vault_to_user<'info>(
     match (mint, token_program_2022) {
         (Some(mint), Some(token_program_2022)) => {
             if from_vault_info.owner == token_program_2022.key {
-                token_program_info = token_program_2022.to_account_info()
+                token_program_info = token_program_2022.to_account_info();
+                token_2022::transfer_checked(
+                    CpiContext::new_with_signer(
+                        *token_program_info.key,
+                        token_2022::TransferChecked {
+                            from: from_vault_info,
+                            to: to.to_account_info(),
+                            authority: pool_state_loader.to_account_info(),
+                            mint: mint.to_account_info(),
+                        },
+                        &[&pool_state_loader.load()?.seeds()],
+                    ),
+                    amount,
+                    mint.decimals,
+                )
+            } else {
+                token::transfer_checked(
+                    CpiContext::new_with_signer(
+                        *token_program_info.key,
+                        token::TransferChecked {
+                            from: from_vault_info,
+                            to: to.to_account_info(),
+                            authority: pool_state_loader.to_account_info(),
+                            mint: mint.to_account_info(),
+                        },
+                        &[&pool_state_loader.load()?.seeds()],
+                    ),
+                    amount,
+                    mint.decimals,
+                )
             }
-            token_2022::transfer_checked(
-                CpiContext::new_with_signer(
-                    token_program_info,
-                    token_2022::TransferChecked {
-                        from: from_vault_info,
-                        to: to.to_account_info(),
-                        authority: pool_state_loader.to_account_info(),
-                        mint: mint.to_account_info(),
-                    },
-                    &[&pool_state_loader.load()?.seeds()],
-                ),
-                amount,
-                mint.decimals,
-            )
         }
         _ => token::transfer(
             CpiContext::new_with_signer(
-                token_program_info,
+                *token_program_info.key,
                 token::Transfer {
                     from: from_vault_info,
                     to: to.to_account_info(),
@@ -137,16 +168,16 @@ pub fn transfer_from_pool_vault_to_user<'info>(
     }
 }
 
-pub fn close_spl_account<'a, 'b, 'c, 'info>(
+pub fn close_spl_account<'info>(
     owner: &AccountInfo<'info>,
     destination: &AccountInfo<'info>,
     close_account: &AccountInfo<'info>,
     token_program: &AccountInfo<'info>,
     signers_seeds: &[&[&[u8]]],
 ) -> Result<()> {
-    token_2022::close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        token_2022::CloseAccount {
+    token::close_account(CpiContext::new_with_signer(
+        *token_program.key,
+        token::CloseAccount {
             account: close_account.to_account_info(),
             destination: destination.to_account_info(),
             authority: owner.to_account_info(),
@@ -155,7 +186,7 @@ pub fn close_spl_account<'a, 'b, 'c, 'info>(
     ))
 }
 
-pub fn burn<'a, 'b, 'c, 'info>(
+pub fn burn<'info>(
     owner: &Signer<'info>,
     mint: &AccountInfo<'info>,
     burn_account: &AccountInfo<'info>,
@@ -164,11 +195,10 @@ pub fn burn<'a, 'b, 'c, 'info>(
     amount: u64,
 ) -> Result<()> {
     let mint_info = mint.to_account_info();
-    let token_program_info: AccountInfo<'_> = token_program.to_account_info();
-    token_2022::burn(
+    token::burn(
         CpiContext::new_with_signer(
-            token_program_info,
-            token_2022::Burn {
+            *token_program.key,
+            token::Burn {
                 mint: mint_info,
                 from: burn_account.to_account_info(),
                 authority: owner.to_account_info(),
@@ -189,7 +219,8 @@ pub fn get_transfer_inverse_fee(
         return Ok(0);
     }
     let mint_data = mint_info.try_borrow_data()?;
-    let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+    let mint = StateWithExtensions::<Token2022Mint>::unpack(&mint_data)
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
         let epoch = get_recent_epoch()?;
@@ -225,7 +256,8 @@ pub fn get_transfer_fee(
         return Ok(0);
     }
     let mint_data = mint_info.try_borrow_data()?;
-    let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+    let mint = StateWithExtensions::<Token2022Mint>::unpack(&mint_data)
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
         transfer_fee_config
@@ -282,8 +314,11 @@ pub fn is_supported_mint(
         return Ok(true);
     }
     let mint_data = mint_info.try_borrow_data()?;
-    let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
-    let extensions = mint.get_extension_types()?;
+    let mint = StateWithExtensions::<Token2022Mint>::unpack(&mint_data)
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
+    let extensions = mint
+        .get_extension_types()
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
     for e in extensions {
         if e != ExtensionType::TransferFeeConfig
             && e != ExtensionType::MetadataPointer
@@ -315,15 +350,15 @@ pub fn create_position_nft_mint_with_extensions<'info>(
     } else {
         [ExtensionType::MintCloseAuthority].to_vec()
     };
-    let space =
-        ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(&extensions)?;
+    let space = ExtensionType::try_calculate_account_len::<Token2022Mint>(&extensions)
+        .map_err(|_| error!(ErrorCode::InvalidAccount))?;
 
     let lamports = Rent::get()?.minimum_balance(space);
 
     // create mint account
     create_account(
         CpiContext::new(
-            system_program.to_account_info(),
+            system_program.key(),
             CreateAccount {
                 from: payer.to_account_info(),
                 to: position_nft_mint.to_account_info(),
@@ -331,39 +366,34 @@ pub fn create_position_nft_mint_with_extensions<'info>(
         ),
         lamports,
         space as u64,
-        token_2022_program.key,
+        &token_2022_program.key(),
     )?;
 
     // initialize token extensions
     for e in extensions {
         match e {
             ExtensionType::MetadataPointer => {
-                let ix = metadata_pointer::instruction::initialize(
-                    token_2022_program.key,
-                    position_nft_mint.key,
+                metadata_pointer_initialize(
+                    CpiContext::new(
+                        token_2022_program.key(),
+                        MetadataPointerInitialize {
+                            token_program_id: token_2022_program.to_account_info(),
+                            mint: position_nft_mint.to_account_info(),
+                        },
+                    ),
                     None,
-                    Some(position_nft_mint.key()),
-                )?;
-                solana_program::program::invoke(
-                    &ix,
-                    &[
-                        token_2022_program.to_account_info(),
-                        position_nft_mint.to_account_info(),
-                    ],
+                    Some(*position_nft_mint.key),
                 )?;
             }
             ExtensionType::MintCloseAuthority => {
-                let ix = spl_token_2022::instruction::initialize_mint_close_authority(
-                    token_2022_program.key,
-                    position_nft_mint.key,
+                initialize_mint_close_authority(
+                    CpiContext::new(
+                        token_2022_program.key(),
+                        InitializeMintCloseAuthority {
+                            mint: position_nft_mint.to_account_info(),
+                        },
+                    ),
                     Some(mint_close_authority.key),
-                )?;
-                solana_program::program::invoke(
-                    &ix,
-                    &[
-                        token_2022_program.to_account_info(),
-                        position_nft_mint.to_account_info(),
-                    ],
                 )?;
             }
             _ => {
@@ -375,7 +405,7 @@ pub fn create_position_nft_mint_with_extensions<'info>(
     // initialize mint account
     initialize_mint2(
         CpiContext::new(
-            token_2022_program.to_account_info(),
+            token_2022_program.key(),
             InitializeMint2 {
                 mint: position_nft_mint.to_account_info(),
             },
@@ -399,13 +429,13 @@ pub fn create_token_vault_account<'info>(
     // support both spl_token_program & token_program_2022
     let space = get_account_data_size(
         CpiContext::new(
-            token_2022_program.to_account_info(),
+            token_2022_program.key(),
             GetAccountDataSize {
                 mint: token_mint.to_account_info(),
             },
         ),
         if immutable_owner_required {
-            &[anchor_spl::token_2022::spl_token_2022::extension::ExtensionType::ImmutableOwner]
+            &[ExtensionType::ImmutableOwner]
         } else {
             &[]
         },
@@ -413,7 +443,7 @@ pub fn create_token_vault_account<'info>(
 
     // create account with or without lamports
     create_or_allocate_account(
-        token_2022_program.key,
+        &token_2022_program.key(),
         payer.to_account_info(),
         system_program.to_account_info(),
         token_account.to_account_info(),
@@ -424,7 +454,7 @@ pub fn create_token_vault_account<'info>(
     // Call initializeImmutableOwner
     if immutable_owner_required {
         token_2022::initialize_immutable_owner(CpiContext::new(
-            token_2022_program.to_account_info(),
+            token_2022_program.key(),
             InitializeImmutableOwner {
                 account: token_account.to_account_info(),
             },
@@ -433,7 +463,7 @@ pub fn create_token_vault_account<'info>(
 
     // Call initializeAccount3
     token_2022::initialize_account3(CpiContext::new(
-        token_2022_program.to_account_info(),
+        token_2022_program.key(),
         InitializeAccount3 {
             account: token_account.to_account_info(),
             mint: token_mint.to_account_info(),

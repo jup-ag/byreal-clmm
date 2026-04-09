@@ -341,8 +341,8 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
     }
 }
 
-pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, SwapSingleV2<'info>>,
+pub fn swap_v2<'info>(
+    ctx: Context<'info, SwapSingleV2<'info>>,
     amount: u64,
     other_amount_threshold: u64,
     sqrt_price_limit_x64: u128,

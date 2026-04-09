@@ -7,7 +7,7 @@ use crate::util::{self, transfer_from_pool_vault_to_user};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use anchor_spl::token_interface::{self, Mint, Token2022};
-use spl_token_2022;
+use spl_token_2022_interface as spl_token_2022;
 use std::cell::RefMut;
 use std::ops::Deref;
 
@@ -89,8 +89,8 @@ pub struct DecreaseLiquidity<'info> {
     // pub tick_array_bitmap: AccountLoader<'info, TickArrayBitmapExtension>,
 }
 
-pub fn decrease_liquidity_v1<'a, 'b, 'c: 'info, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, DecreaseLiquidity<'info>>,
+pub fn decrease_liquidity_v1<'info>(
+    ctx: Context<'info, DecreaseLiquidity<'info>>,
     liquidity: u128,
     amount_0_min: u64,
     amount_1_min: u64,
@@ -131,7 +131,7 @@ pub fn decrease_liquidity_v1<'a, 'b, 'c: 'info, 'info>(
     )
 }
 
-pub fn decrease_liquidity<'a, 'b, 'c: 'info, 'info>(
+pub fn decrease_liquidity<'b, 'c: 'info, 'info>(
     pool_state_loader: &'b AccountLoader<'info, PoolState>,
     personal_position: &'b mut Box<Account<'info, PersonalPositionState>>,
     token_vault_0: &'b AccountInfo<'info>,
@@ -317,7 +317,7 @@ pub fn decrease_liquidity<'a, 'b, 'c: 'info, 'info>(
     Ok(())
 }
 
-pub fn decrease_liquidity_and_update_position<'a, 'b, 'c: 'info, 'info>(
+pub fn decrease_liquidity_and_update_position<'c: 'info, 'info>(
     pool_state_loader: &AccountLoader<'info, PoolState>,
     personal_position: &mut Box<Account<'info, PersonalPositionState>>,
     tick_array_lower: &TickArrayContainer<'info>,
@@ -476,7 +476,7 @@ pub fn burn_liquidity<'c: 'info, 'info>(
     Ok(result)
 }
 
-pub fn collect_rewards<'a, 'b, 'c, 'info>(
+pub fn collect_rewards<'b, 'c: 'info, 'info>(
     pool_state_loader: &AccountLoader<'info, PoolState>,
     remaining_accounts: &[&'info AccountInfo<'info>],
     token_program: &'b Program<'info, Token>,
@@ -592,13 +592,15 @@ pub fn check_unclaimed_fees_and_vault(
 ) -> Result<()> {
     let token_vault_0_amount = spl_token_2022::extension::StateWithExtensions::<
         spl_token_2022::state::Account,
-    >::unpack(token_vault_0.try_borrow_data()?.deref())?
+    >::unpack(token_vault_0.try_borrow_data()?.deref())
+    .map_err(|_| error!(ErrorCode::InvalidAccount))?
     .base
     .amount;
 
     let token_vault_1_amount = spl_token_2022::extension::StateWithExtensions::<
         spl_token_2022::state::Account,
-    >::unpack(token_vault_1.try_borrow_data()?.deref())?
+    >::unpack(token_vault_1.try_borrow_data()?.deref())
+    .map_err(|_| error!(ErrorCode::InvalidAccount))?
     .base
     .amount;
 
