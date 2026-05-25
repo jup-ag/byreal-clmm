@@ -153,12 +153,7 @@ pub fn get_next_sqrt_price_from_output(
     require!(liquidity > 0, ErrorCode::InvalidLiquidity);
 
     if zero_for_one {
-        get_next_sqrt_price_from_amount_1_rounding_down(
-            sqrt_price_x64,
-            liquidity,
-            amount_out,
-            false,
-        )
+        get_next_sqrt_price_from_amount_1_rounding_down(sqrt_price_x64, liquidity, amount_out, false)
     } else {
         get_next_sqrt_price_from_amount_0_rounding_up(sqrt_price_x64, liquidity, amount_out, false)
     }

@@ -65,10 +65,7 @@ pub struct WithdrawOffchainRewardAccounts<'info> {
 }
 
 /// withdraw offchain reward into the reward vault.
-pub fn withdraw_offchain_reward(
-    ctx: Context<WithdrawOffchainRewardAccounts>,
-    amount: u64,
-) -> Result<()> {
+pub fn withdraw_offchain_reward(ctx: Context<WithdrawOffchainRewardAccounts>, amount: u64) -> Result<()> {
     require_keys_eq!(
         *ctx.accounts.reward_config.to_account_info().owner,
         crate::id(),
@@ -84,10 +81,7 @@ pub fn withdraw_offchain_reward(
         ErrorCode::InvalidAccount
     );
 
-    if !reward_config
-        .reward_mint_vec
-        .contains(&ctx.accounts.token_mint.key())
-    {
+    if !reward_config.reward_mint_vec.contains(&ctx.accounts.token_mint.key()) {
         return err!(ErrorCode::NotSupportMint);
     }
 

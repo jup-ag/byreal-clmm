@@ -231,11 +231,7 @@ pub fn get_delta_amount_1_unsigned(
 }
 
 /// Helper function to get signed delta amount_0 for given liquidity and price range
-pub fn get_delta_amount_0_signed(
-    sqrt_ratio_a_x64: u128,
-    sqrt_ratio_b_x64: u128,
-    liquidity: i128,
-) -> Result<u64> {
+pub fn get_delta_amount_0_signed(sqrt_ratio_a_x64: u128, sqrt_ratio_b_x64: u128, liquidity: i128) -> Result<u64> {
     if liquidity < 0 {
         get_delta_amount_0_unsigned(
             sqrt_ratio_a_x64,
@@ -254,11 +250,7 @@ pub fn get_delta_amount_0_signed(
 }
 
 /// Helper function to get signed delta amount_1 for given liquidity and price range
-pub fn get_delta_amount_1_signed(
-    sqrt_ratio_a_x64: u128,
-    sqrt_ratio_b_x64: u128,
-    liquidity: i128,
-) -> Result<u64> {
+pub fn get_delta_amount_1_signed(sqrt_ratio_a_x64: u128, sqrt_ratio_b_x64: u128, liquidity: i128) -> Result<u64> {
     if liquidity < 0 {
         get_delta_amount_1_unsigned(
             sqrt_ratio_a_x64,

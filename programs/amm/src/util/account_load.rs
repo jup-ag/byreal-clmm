@@ -1,4 +1,5 @@
 use anchor_lang::error::{Error, ErrorCode};
+use anchor_lang::prelude::msg;
 use anchor_lang::solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 use anchor_lang::{Key, Owner, Result, ToAccountInfos, ZeroCopy};
 use arrayref::array_ref;
@@ -25,8 +26,13 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
     #[inline(never)]
     pub fn try_from(acc_info: &AccountInfo<'info>) -> Result<AccountLoad<'info, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
-                .with_pubkeys((*acc_info.owner, T::owner())));
+            msg!(
+                "account owner error, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
         }
         let data: &[u8] = &acc_info.try_borrow_data()?;
         if data.len() < T::DISCRIMINATOR.len() {
@@ -35,6 +41,12 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
         // Discriminator must match.
         let disc_bytes = array_ref![data, 0, 8];
         if disc_bytes != &T::DISCRIMINATOR {
+            msg!(
+                "account discriminator mismatch, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountDiscriminatorMismatch.into());
         }
 
@@ -48,8 +60,13 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
         acc_info: &AccountInfo<'info>,
     ) -> Result<AccountLoad<'info, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
-                .with_pubkeys((*acc_info.owner, T::owner())));
+            msg!(
+                "account owner error, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
         }
         Ok(AccountLoad::new(acc_info.clone()))
     }
@@ -86,10 +103,21 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
     /// So it is necessary to check the owner
     pub fn load_data_mut<'a>(acc_info: &'a AccountInfo) -> Result<RefMut<'a, T>> {
         if acc_info.owner != &T::owner() {
-            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
-                .with_pubkeys((*acc_info.owner, T::owner())));
+            msg!(
+                "account owner error, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
+            return Err(Error::from(ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((*acc_info.owner, T::owner())));
         }
         if !acc_info.is_writable {
+            msg!(
+                "account not mutable, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountNotMutable.into());
         }
 
@@ -100,6 +128,12 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
 
         let disc_bytes = array_ref![data, 0, 8];
         if disc_bytes != &T::DISCRIMINATOR {
+            msg!(
+                "account discriminator mismatch, account={}, {}:{}",
+                acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountDiscriminatorMismatch.into());
         }
 
@@ -117,6 +151,12 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
 
         let disc_bytes = array_ref![data, 0, 8];
         if disc_bytes != &T::DISCRIMINATOR {
+            msg!(
+                "account discriminator mismatch, account={}, {}:{}",
+                self.acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountDiscriminatorMismatch.into());
         }
 
@@ -130,6 +170,12 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
         // AccountInfo api allows you to borrow mut even if the account isn't
         // writable, so add this check for a better dev experience.
         if !self.acc_info.is_writable {
+            msg!(
+                "account not mutable, account={}, {}:{}",
+                self.acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountNotMutable.into());
         }
 
@@ -140,6 +186,12 @@ impl<'info, T: ZeroCopy + Owner> AccountLoad<'info, T> {
 
         let disc_bytes = array_ref![data, 0, 8];
         if disc_bytes != &T::DISCRIMINATOR {
+            msg!(
+                "account discriminator mismatch, account={}, {}:{}",
+                self.acc_info.key(),
+                file!(),
+                line!()
+            );
             return Err(ErrorCode::AccountDiscriminatorMismatch.into());
         }
 

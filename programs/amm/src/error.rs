@@ -88,9 +88,7 @@ pub enum ErrorCode {
     InvalidRewardInputAccountNumber,
     #[msg("Invalid reward period")]
     InvalidRewardPeriod,
-    #[msg(
-        "Modification of emissiones is allowed within 72 hours from the end of the previous cycle"
-    )]
+    #[msg("Modification of emissiones is allowed within 72 hours from the end of the previous cycle")]
     NotApproveUpdateRewardEmissiones,
     #[msg("uninitialized reward info")]
     UnInitializedRewardInfo,
@@ -115,4 +113,13 @@ pub enum ErrorCode {
 
     #[msg("Invalid decay fee params")]
     DecayFeeNeitherOnSellMint0NorMint1,
+
+    #[msg("Swap dynamic fee is enabled, must use swap_v3_dyn instruction")]
+    SwapDynamicFeeEnabled,
+    #[msg("Invalid pyth oracle account")]
+    InvalidPythOracleAccount,
+    #[msg("Pyth price is stale")]
+    PythPriceStale,
+    #[msg("Invalid swap dynamic fee params")]
+    InvalidSwapDynamicFeeParams,
 }

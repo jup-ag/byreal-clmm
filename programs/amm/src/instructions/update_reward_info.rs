@@ -11,8 +11,7 @@ pub struct UpdateRewardInfos<'info> {
 pub fn update_reward_infos<'info>(ctx: Context<'info, UpdateRewardInfos<'info>>) -> Result<()> {
     let clock = Clock::get()?;
     let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-    let updated_reward_infos =
-        pool_state.update_reward_infos(u64::try_from(clock.unix_timestamp).unwrap())?;
+    let updated_reward_infos = pool_state.update_reward_infos(u64::try_from(clock.unix_timestamp).unwrap())?;
 
     emit!(UpdateRewardInfosEvent {
         reward_growth_global_x64: RewardInfo::get_reward_growths(&updated_reward_infos)
