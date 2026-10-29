@@ -3,7 +3,7 @@ use crate::states::*;
 use crate::util::{burn, close_spl_account};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use spl_token_2022_interface as spl_token_2022;
+use anchor_spl::token_2022::spl_token_2022;
 
 #[derive(Accounts)]
 pub struct ClosePosition<'info> {

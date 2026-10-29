@@ -14,7 +14,7 @@ use anchor_spl::token_2022::{
 };
 use anchor_spl::token_2022_extensions::{metadata_pointer_initialize, MetadataPointerInitialize};
 use anchor_spl::token_interface::{initialize_mint2, InitializeMint2, Mint, TokenInterface};
-use spl_token_2022_interface::{
+use anchor_spl::token_2022::spl_token_2022::{
     self,
     extension::{
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},

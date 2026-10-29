@@ -15,7 +15,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use anchor_spl::token_2022::{self, Token2022};
 use anchor_spl::token_2022_extensions::spl_token_metadata_interface;
 use anchor_spl::token_interface;
-use spl_token_2022_interface::{
+use anchor_spl::token_2022::spl_token_2022::{
     extension::StateWithExtensions, instruction::AuthorityType, state::Mint as Token2022Mint,
 };
 use std::cell::RefMut;
